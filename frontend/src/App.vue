@@ -66,23 +66,37 @@
 
         <el-card shadow="never" class="box-card">
           <h3>第二步：配置模型学习参数</h3>
+          
+          <!-- 新增：标签列输入 -->
+          <div class="slider-block" style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px;">请输入标签列名:</label>
+            <el-input 
+              v-model="labelColumn" 
+              placeholder="例如: label, category, target, outcome" 
+              style="width: 300px; margin-left: 10px;"
+            />
+            <p class="sub-text">请指定数据集中代表分类或回归目标的列名。</p>
+          </div>
+          
           <div class="slider-block">
             <span class="label">训练集分配比例 (用于学习): {{ (trainRatio * 100).toFixed(0) }}%</span>
             <el-slider v-model="trainRatio" :min="0.5" :max="0.9" :step="0.05" show-stops />
             <p class="sub-text">注：剩余比例将自动平分为验证集与测试集用于考核模型能力。</p>
           </div>
+          
           <div id="gpu-info-container" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;">
-    <h3>GPU Status</h3>
-    <div id="gpu-info-content">
-        <!-- GPU 信息将在这里动态加载 -->
-    </div>
-</div>
+            <h3>GPU Status</h3>
+            <div id="gpu-info-content">
+                <!-- GPU 信息将在这里动态加载 -->
+            </div>
+          </div>
+          
           <el-button 
             type="success" 
             size="large" 
             @click="startTraining" 
             :loading="isTraining" 
-            :disabled="!selectedFolder || (selectedFiles.length === 0 && !selectAllChecked)"
+            :disabled="!selectedFolder || (selectedFiles.length === 0 && !selectAllChecked) || !labelColumn"
             style="margin-top: 15px;"
           >
             {{ isTraining ? '模型后台全速训练中 (请勿刷新)...' : '一键并行训练 5 大基线模型' }}
@@ -132,7 +146,7 @@
           <el-row :gutter="20">
             <el-col :span="12" v-for="(item, index) in premiumModels" :key="index">
               <el-card class="premium-card" shadow="hover">
-                <h4>       {{ item.name }}</h4>
+                <h4> {{ item.name }}</h4>
                 <p>{{ item.desc }}</p>
                 <div class="price-bar">
                   <span class="price">{{ item.price }}</span>
@@ -184,6 +198,8 @@ const selectedFiles = ref([]) // 用户勾选的文件列表
 const selectAllChecked = ref(false) // 标记是否全选了当前文件夹
 const loadingFiles = ref(false) // 标记是否正在加载文件列表
 
+// 新增：存储用户输入的标签列名
+const labelColumn = ref('') 
 
 // 修改默认值：防止数据量过少导致 F1=0，建议至少 0.7-0.8
 const trainRatio = ref(0.8) 
@@ -260,16 +276,13 @@ const selectAllFiles = () => {
   selectAllChecked.value = true
   console.log('已全选当前文件夹下的所有文件:', selectedFiles.value)
 }
+
 let gpuStatusIntervalId = null;
 
 // 修改 fetch 地址，确保与后端启动的 host:port 一致
 // 如果后端是 127.0.0.1:8000，这里要么是相对路径（如果前端通过 8000 端口服务），要么是完整 URL
 // 假设前后端同源或已配置 CORS，则使用相对路径是正确的
 function fetchAndDisplayGpuStatus() {
-    // 使用相对路径 /api/gpu/status
-    // 如果前端是通过另一个服务器（如 Vite dev server）在不同端口（如 8080）运行，
-    // 并且后端在 8000，你需要将地址改为 'http://127.0.0.1:8000/api/gpu/status'
-    // 但鉴于你后端允许了 "*" 跨域，相对路径通常就够了。
     fetch('http://127.0.0.1:8000/api/gpu/status')  
         .then(response => {
             // 检查 HTTP 状态码是否为 OK
@@ -323,6 +336,7 @@ function startGpuStatusPolling() {
 document.addEventListener('DOMContentLoaded', function () {
     startGpuStatusPolling();
 });
+
 // 修改：触发一键训练
 const startTraining = async () => {
   if (!selectedFolder.value) {
@@ -334,6 +348,12 @@ const startTraining = async () => {
   if (selectedFiles.value.length === 0 && !selectAllChecked.value) {
      ElMessage.warning('请选择至少一个数据文件，或者点击“全选本文件夹”。')
      return
+  }
+
+  // 新增：检查标签列名是否填写
+  if (!labelColumn.value.trim()) {
+    ElMessage.warning('请输入数据集的标签列名！')
+    return
   }
 
   isTraining.value = true
@@ -348,6 +368,9 @@ const startTraining = async () => {
     formData.append('file_names', fileNamesToSend)
     
     formData.append('train_ratio', trainRatio.value)
+    
+    // 新增：添加标签列名到表单数据
+    formData.append('label_column', labelColumn.value.trim())
 
     // 修改请求地址
     const response = await axios.post('http://localhost:8000/api/train/start', formData)
