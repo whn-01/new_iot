@@ -15,7 +15,7 @@ output/
 results/
 
 # ⭐ 忽略训练模型（你要的）
-banckend/storage/trained_models/
+banckend/storage/
 
 # 可选：如果数据也不想传
 # banckend/storage/datasets/

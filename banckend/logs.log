@@ -7581,3 +7581,933 @@ Alternately, you can install this by running `pip install pycaret[models]`
 2026-04-16 15:40:03,609:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/ray/tune/experiment/experiment.py:170: UserWarning: The `local_dir` argument of `Experiment is deprecated. Use `storage_path` or set the `TUNE_RESULT_DIR` environment variable instead.
   warnings.warn(
 
+2026-04-16 16:01:58,010:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-16 16:01:58,010:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-16 16:01:58,010:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-16 16:01:58,010:WARNING:
+'cuml' is a soft dependency and not included in the pycaret installation. Please run: `pip install cuml` to install.
+2026-04-16 16:02:21,711:INFO:PyCaret ClassificationExperiment
+2026-04-16 16:02:21,711:INFO:Logging name: clf-default-name
+2026-04-16 16:02:21,711:INFO:ML Usecase: MLUsecase.CLASSIFICATION
+2026-04-16 16:02:21,711:INFO:version 3.4.0
+2026-04-16 16:02:21,711:INFO:Initializing setup()
+2026-04-16 16:02:21,711:INFO:self.USI: 18c1
+2026-04-16 16:02:21,711:INFO:self._variable_keys: {'fold_groups_param', 'log_plots_param', 'y_train', '_ml_usecase', 'seed', 'memory', 'exp_name_log', 'gpu_n_jobs_param', 'data', 'logging_param', 'USI', 'target_param', 'exp_id', 'gpu_param', 'html_param', 'is_multiclass', 'X_train', '_available_plots', 'y', 'fix_imbalance', 'fold_shuffle_param', 'X_test', 'y_test', 'X', 'fold_generator', 'pipeline', 'idx', 'n_jobs_param'}
+2026-04-16 16:02:21,711:INFO:Checking environment
+2026-04-16 16:02:21,711:INFO:python_version: 3.10.20
+2026-04-16 16:02:21,711:INFO:python_build: ('main', 'Mar 11 2026 17:46:40')
+2026-04-16 16:02:21,711:INFO:machine: x86_64
+2026-04-16 16:02:21,711:INFO:platform: Linux-5.15.0-139-generic-x86_64-with-glibc2.31
+2026-04-16 16:02:21,711:INFO:Memory: svmem(total=33242726400, available=19924766720, percent=40.1, used=12744183808, free=10048327680, active=6647119872, inactive=14566084608, buffers=1078808576, cached=9371406336, shared=94793728, slab=1002344448)
+2026-04-16 16:02:21,712:INFO:Physical Core: 24
+2026-04-16 16:02:21,712:INFO:Logical Core: 32
+2026-04-16 16:02:21,712:INFO:Checking libraries
+2026-04-16 16:02:21,712:INFO:System:
+2026-04-16 16:02:21,712:INFO:    python: 3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]
+2026-04-16 16:02:21,712:INFO:executable: /home/yhz/miniconda3/envs/local_iot/bin/python3.10
+2026-04-16 16:02:21,712:INFO:   machine: Linux-5.15.0-139-generic-x86_64-with-glibc2.31
+2026-04-16 16:02:21,712:INFO:PyCaret required dependencies:
+2026-04-16 16:02:21,712:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/_distutils_hack/__init__.py:26: UserWarning: Setuptools is replacing distutils.
+  warnings.warn("Setuptools is replacing distutils.")
+
+2026-04-16 16:02:21,716:INFO:                 pip: 26.0.1
+2026-04-16 16:02:21,716:INFO:          setuptools: 69.5.1
+2026-04-16 16:02:21,716:INFO:             pycaret: 3.4.0
+2026-04-16 16:02:21,716:INFO:             IPython: 8.39.0
+2026-04-16 16:02:21,716:INFO:          ipywidgets: 8.1.8
+2026-04-16 16:02:21,716:INFO:                tqdm: 4.67.3
+2026-04-16 16:02:21,716:INFO:               numpy: 1.26.4
+2026-04-16 16:02:21,716:INFO:              pandas: 2.1.3
+2026-04-16 16:02:21,716:INFO:              jinja2: 3.1.6
+2026-04-16 16:02:21,716:INFO:               scipy: 1.11.4
+2026-04-16 16:02:21,716:INFO:              joblib: 1.4.2
+2026-04-16 16:02:21,716:INFO:             sklearn: 1.4.2
+2026-04-16 16:02:21,716:INFO:                pyod: 2.0.7
+2026-04-16 16:02:21,716:INFO:            imblearn: 0.13.0
+2026-04-16 16:02:21,716:INFO:   category_encoders: 2.7.0
+2026-04-16 16:02:21,716:INFO:            lightgbm: 4.6.0
+2026-04-16 16:02:21,716:INFO:               numba: 0.65.0
+2026-04-16 16:02:21,716:INFO:            requests: 2.33.1
+2026-04-16 16:02:21,716:INFO:          matplotlib: 3.7.5
+2026-04-16 16:02:21,716:INFO:          scikitplot: 0.3.12
+2026-04-16 16:02:21,716:INFO:         yellowbrick: 1.5
+2026-04-16 16:02:21,716:INFO:              plotly: 6.6.0
+2026-04-16 16:02:21,716:INFO:    plotly-resampler: Not installed
+2026-04-16 16:02:21,716:INFO:             kaleido: 1.2.0
+2026-04-16 16:02:21,716:INFO:           schemdraw: 0.15
+2026-04-16 16:02:21,716:INFO:         statsmodels: 0.14.6
+2026-04-16 16:02:21,716:INFO:              sktime: 0.31.0
+2026-04-16 16:02:21,716:INFO:               tbats: 1.1.3
+2026-04-16 16:02:21,716:INFO:            pmdarima: 2.0.4
+2026-04-16 16:02:21,716:INFO:              psutil: 5.9.4
+2026-04-16 16:02:21,716:INFO:          markupsafe: 3.0.3
+2026-04-16 16:02:21,716:INFO:             pickle5: Not installed
+2026-04-16 16:02:21,716:INFO:         cloudpickle: 3.1.2
+2026-04-16 16:02:21,716:INFO:         deprecation: 2.1.0
+2026-04-16 16:02:21,716:INFO:              xxhash: 3.6.0
+2026-04-16 16:02:21,716:INFO:           wurlitzer: 3.1.1
+2026-04-16 16:02:21,716:INFO:PyCaret optional dependencies:
+2026-04-16 16:02:21,721:INFO:                shap: Not installed
+2026-04-16 16:02:21,721:INFO:           interpret: Not installed
+2026-04-16 16:02:21,721:INFO:                umap: Not installed
+2026-04-16 16:02:21,721:INFO:     ydata_profiling: Not installed
+2026-04-16 16:02:21,721:INFO:  explainerdashboard: Not installed
+2026-04-16 16:02:21,721:INFO:             autoviz: Not installed
+2026-04-16 16:02:21,721:INFO:           fairlearn: Not installed
+2026-04-16 16:02:21,721:INFO:          deepchecks: Not installed
+2026-04-16 16:02:21,721:INFO:             xgboost: Not installed
+2026-04-16 16:02:21,721:INFO:            catboost: Not installed
+2026-04-16 16:02:21,721:INFO:              kmodes: Not installed
+2026-04-16 16:02:21,721:INFO:             mlxtend: Not installed
+2026-04-16 16:02:21,721:INFO:       statsforecast: Not installed
+2026-04-16 16:02:21,721:INFO:        tune_sklearn: Not installed
+2026-04-16 16:02:21,721:INFO:                 ray: 2.4.0
+2026-04-16 16:02:21,721:INFO:            hyperopt: 0.2.7
+2026-04-16 16:02:21,721:INFO:              optuna: Not installed
+2026-04-16 16:02:21,722:INFO:               skopt: Not installed
+2026-04-16 16:02:21,722:INFO:              mlflow: Not installed
+2026-04-16 16:02:21,722:INFO:              gradio: Not installed
+2026-04-16 16:02:21,722:INFO:             fastapi: 0.104.1
+2026-04-16 16:02:21,722:INFO:             uvicorn: 0.24.0
+2026-04-16 16:02:21,722:INFO:              m2cgen: Not installed
+2026-04-16 16:02:21,722:INFO:           evidently: Not installed
+2026-04-16 16:02:21,722:INFO:               fugue: Not installed
+2026-04-16 16:02:21,722:INFO:           streamlit: Not installed
+2026-04-16 16:02:21,722:INFO:             prophet: Not installed
+2026-04-16 16:02:21,722:INFO:None
+2026-04-16 16:02:21,722:INFO:Set up data.
+2026-04-16 16:02:21,724:INFO:Set up folding strategy.
+2026-04-16 16:02:21,724:INFO:Set up train/test split.
+2026-04-16 16:02:21,728:INFO:Set up index.
+2026-04-16 16:02:21,728:INFO:Assigning column types.
+2026-04-16 16:02:21,729:INFO:Engine successfully changes for model 'lr' to 'sklearn'.
+2026-04-16 16:02:21,752:INFO:Engine for model 'knn' has not been set explicitly, hence returning None.
+2026-04-16 16:02:21,753:INFO:Engine for model 'rbfsvm' has not been set explicitly, hence returning None.
+2026-04-16 16:02:21,769:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,769:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,791:INFO:Engine for model 'knn' has not been set explicitly, hence returning None.
+2026-04-16 16:02:21,792:INFO:Engine for model 'rbfsvm' has not been set explicitly, hence returning None.
+2026-04-16 16:02:21,806:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,806:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,806:INFO:Engine successfully changes for model 'knn' to 'sklearn'.
+2026-04-16 16:02:21,828:INFO:Engine for model 'rbfsvm' has not been set explicitly, hence returning None.
+2026-04-16 16:02:21,841:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,841:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,863:INFO:Engine for model 'rbfsvm' has not been set explicitly, hence returning None.
+2026-04-16 16:02:21,876:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,876:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,876:INFO:Engine successfully changes for model 'rbfsvm' to 'sklearn'.
+2026-04-16 16:02:21,912:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,912:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,947:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,948:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:21,948:INFO:Preparing preprocessing pipeline...
+2026-04-16 16:02:21,949:INFO:Set up label encoding.
+2026-04-16 16:02:21,949:INFO:Set up simple imputation.
+2026-04-16 16:02:21,950:INFO:Set up encoding of categorical features.
+2026-04-16 16:02:21,982:INFO:Finished creating preprocessing pipeline.
+2026-04-16 16:02:21,985:INFO:Pipeline: Pipeline(memory=FastMemory(location=/tmp/joblib),
+         steps=[('label_encoding',
+                 TransformerWrapperWithInverse(exclude=None, include=None,
+                                               transformer=LabelEncoder())),
+                ('numerical_imputer',
+                 TransformerWrapper(exclude=None,
+                                    include=['productid', 'deviceid'],
+                                    transformer=SimpleImputer(add_indicator=False,
+                                                              copy=True,
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing...
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing_values=nan,
+                                                              strategy='most_frequent'))),
+                ('onehot_encoding',
+                 TransformerWrapper(exclude=None,
+                                    include=['universalid', 'name'],
+                                    transformer=OneHotEncoder(cols=['universalid',
+                                                                    'name'],
+                                                              drop_invariant=False,
+                                                              handle_missing='return_nan',
+                                                              handle_unknown='value',
+                                                              return_df=True,
+                                                              use_cat_names=True,
+                                                              verbose=0)))],
+         verbose=False)
+2026-04-16 16:02:21,985:INFO:Creating final display dataframe.
+2026-04-16 16:02:22,089:INFO:Setup _display_container:                     Description                  Value
+0                    Session id                     42
+1                        Target               auto_tag
+2                   Target type                 Binary
+3                Target mapping  EVEN_ID: 0, ODD_ID: 1
+4           Original data shape               (139, 5)
+5        Transformed data shape              (139, 33)
+6   Transformed train set shape              (111, 33)
+7    Transformed test set shape               (28, 33)
+8              Numeric features                      2
+9          Categorical features                      2
+10                   Preprocess                   True
+11              Imputation type                 simple
+12           Numeric imputation                   mean
+13       Categorical imputation                   mode
+14     Maximum one-hot encoding                     25
+15              Encoding method                   None
+16               Fold Generator        StratifiedKFold
+17                  Fold Number                      3
+18                     CPU Jobs                      1
+19                      Use GPU                  False
+20               Log Experiment                  False
+21              Experiment Name       clf-default-name
+22                          USI                   18c1
+2026-04-16 16:02:22,125:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:22,125:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:22,160:WARNING:
+'xgboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install xgboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:22,160:WARNING:
+'catboost' is a soft dependency and not included in the pycaret installation. Please run: `pip install catboost` to install.
+Alternately, you can install this by running `pip install pycaret[models]`
+2026-04-16 16:02:22,161:INFO:setup() successfully completed in 0.45s...............
+2026-04-16 16:02:22,161:INFO:Initializing create_model()
+2026-04-16 16:02:22,161:INFO:create_model(self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>, estimator=rf, fold=None, round=4, cross_validation=True, predict=True, fit_kwargs=None, groups=None, refit=True, probability_threshold=None, experiment_custom_tags=None, verbose=False, system=True, add_to_model_list=True, metrics=None, display=None, model_only=True, return_train_score=False, error_score=0.0, kwargs={})
+2026-04-16 16:02:22,161:INFO:Checking exceptions
+2026-04-16 16:02:22,162:INFO:Importing libraries
+2026-04-16 16:02:22,162:INFO:Copying training dataset
+2026-04-16 16:02:22,164:INFO:Defining folds
+2026-04-16 16:02:22,164:INFO:Declaring metric variables
+2026-04-16 16:02:22,164:INFO:Importing untrained model
+2026-04-16 16:02:22,164:INFO:Random Forest Classifier Imported successfully
+2026-04-16 16:02:22,164:INFO:Starting cross validation
+2026-04-16 16:02:22,165:INFO:Cross validating with StratifiedKFold(n_splits=3, random_state=None, shuffle=False), n_jobs=1
+2026-04-16 16:02:22,261:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,263:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,264:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,360:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,362:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,363:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,460:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,462:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,463:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:22,465:INFO:Calculating mean and std
+2026-04-16 16:02:22,466:INFO:Creating metrics dataframe
+2026-04-16 16:02:22,467:INFO:Finalizing model
+2026-04-16 16:02:22,547:INFO:Uploading results into container
+2026-04-16 16:02:22,547:INFO:Uploading model into container now
+2026-04-16 16:02:22,547:INFO:_master_model_container: 1
+2026-04-16 16:02:22,547:INFO:_display_container: 2
+2026-04-16 16:02:22,547:INFO:RandomForestClassifier(bootstrap=True, ccp_alpha=0.0, class_weight=None,
+                       criterion='gini', max_depth=None, max_features='sqrt',
+                       max_leaf_nodes=None, max_samples=None,
+                       min_impurity_decrease=0.0, min_samples_leaf=1,
+                       min_samples_split=2, min_weight_fraction_leaf=0.0,
+                       monotonic_cst=None, n_estimators=100, n_jobs=1,
+                       oob_score=False, random_state=42, verbose=0,
+                       warm_start=False)
+2026-04-16 16:02:22,547:INFO:create_model() successfully completed......................................
+2026-04-16 16:02:22,714:INFO:Initializing tune_model()
+2026-04-16 16:02:22,714:INFO:tune_model(estimator=RandomForestClassifier(bootstrap=True, ccp_alpha=0.0, class_weight=None,
+                       criterion='gini', max_depth=None, max_features='sqrt',
+                       max_leaf_nodes=None, max_samples=None,
+                       min_impurity_decrease=0.0, min_samples_leaf=1,
+                       min_samples_split=2, min_weight_fraction_leaf=0.0,
+                       monotonic_cst=None, n_estimators=100, n_jobs=1,
+                       oob_score=False, random_state=42, verbose=0,
+                       warm_start=False), fold=None, round=4, n_iter=10, custom_grid=None, optimize=F1, custom_scorer=None, search_library=scikit-learn, search_algorithm=None, early_stopping=False, early_stopping_max_iters=10, choose_better=True, fit_kwargs=None, groups=None, return_tuner=False, verbose=False, tuner_verbose=True, return_train_score=False, kwargs={}, self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>)
+2026-04-16 16:02:22,714:INFO:Checking exceptions
+2026-04-16 16:02:22,717:INFO:Copying training dataset
+2026-04-16 16:02:22,719:INFO:Checking base model
+2026-04-16 16:02:22,719:INFO:Base model : Random Forest Classifier
+2026-04-16 16:02:22,719:INFO:Declaring metric variables
+2026-04-16 16:02:22,719:INFO:Defining Hyperparameters
+2026-04-16 16:02:22,884:INFO:Tuning with n_jobs=1
+2026-04-16 16:02:22,884:INFO:Initializing RandomizedSearchCV
+2026-04-16 16:02:22,968:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:23,044:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:23,120:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:23,273:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:23,425:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:23,577:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:23,739:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:23,899:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,058:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,174:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,288:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,402:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,470:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,537:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,604:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,700:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,795:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:24,891:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,012:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,135:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,256:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,363:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,470:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,576:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,733:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:25,888:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,045:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,175:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,301:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,427:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,429:INFO:best_params: {'actual_estimator__n_estimators': 100, 'actual_estimator__min_samples_split': 7, 'actual_estimator__min_samples_leaf': 5, 'actual_estimator__min_impurity_decrease': 0.0002, 'actual_estimator__max_features': 1.0, 'actual_estimator__max_depth': 1, 'actual_estimator__criterion': 'entropy', 'actual_estimator__class_weight': 'balanced_subsample', 'actual_estimator__bootstrap': False}
+2026-04-16 16:02:26,429:INFO:Hyperparameter search completed
+2026-04-16 16:02:26,429:INFO:SubProcess create_model() called ==================================
+2026-04-16 16:02:26,429:INFO:Initializing create_model()
+2026-04-16 16:02:26,429:INFO:create_model(self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>, estimator=RandomForestClassifier(bootstrap=True, ccp_alpha=0.0, class_weight=None,
+                       criterion='gini', max_depth=None, max_features='sqrt',
+                       max_leaf_nodes=None, max_samples=None,
+                       min_impurity_decrease=0.0, min_samples_leaf=1,
+                       min_samples_split=2, min_weight_fraction_leaf=0.0,
+                       monotonic_cst=None, n_estimators=100, n_jobs=1,
+                       oob_score=False, random_state=42, verbose=0,
+                       warm_start=False), fold=StratifiedKFold(n_splits=3, random_state=None, shuffle=False), round=4, cross_validation=True, predict=True, fit_kwargs={}, groups=None, refit=True, probability_threshold=None, experiment_custom_tags=None, verbose=True, system=False, add_to_model_list=True, metrics=None, display=<pycaret.internal.display.display.CommonDisplay object at 0x7fa6149ba320>, model_only=True, return_train_score=False, error_score=0.0, kwargs={'n_estimators': 100, 'min_samples_split': 7, 'min_samples_leaf': 5, 'min_impurity_decrease': 0.0002, 'max_features': 1.0, 'max_depth': 1, 'criterion': 'entropy', 'class_weight': 'balanced_subsample', 'bootstrap': False})
+2026-04-16 16:02:26,429:INFO:Checking exceptions
+2026-04-16 16:02:26,429:INFO:Importing libraries
+2026-04-16 16:02:26,429:INFO:Copying training dataset
+2026-04-16 16:02:26,430:INFO:Defining folds
+2026-04-16 16:02:26,431:INFO:Declaring metric variables
+2026-04-16 16:02:26,431:INFO:Importing untrained model
+2026-04-16 16:02:26,431:INFO:Declaring custom model
+2026-04-16 16:02:26,431:INFO:Random Forest Classifier Imported successfully
+2026-04-16 16:02:26,431:INFO:Starting cross validation
+2026-04-16 16:02:26,432:INFO:Cross validating with StratifiedKFold(n_splits=3, random_state=None, shuffle=False), n_jobs=1
+2026-04-16 16:02:26,513:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,514:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,516:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,595:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,597:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,598:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,678:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,679:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,681:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:26,683:INFO:Calculating mean and std
+2026-04-16 16:02:26,683:INFO:Creating metrics dataframe
+2026-04-16 16:02:26,684:INFO:Finalizing model
+2026-04-16 16:02:26,746:INFO:Uploading results into container
+2026-04-16 16:02:26,747:INFO:Uploading model into container now
+2026-04-16 16:02:26,747:INFO:_master_model_container: 2
+2026-04-16 16:02:26,747:INFO:_display_container: 3
+2026-04-16 16:02:26,747:INFO:RandomForestClassifier(bootstrap=False, ccp_alpha=0.0,
+                       class_weight='balanced_subsample', criterion='entropy',
+                       max_depth=1, max_features=1.0, max_leaf_nodes=None,
+                       max_samples=None, min_impurity_decrease=0.0002,
+                       min_samples_leaf=5, min_samples_split=7,
+                       min_weight_fraction_leaf=0.0, monotonic_cst=None,
+                       n_estimators=100, n_jobs=1, oob_score=False,
+                       random_state=42, verbose=0, warm_start=False)
+2026-04-16 16:02:26,747:INFO:create_model() successfully completed......................................
+2026-04-16 16:02:26,896:INFO:SubProcess create_model() end ==================================
+2026-04-16 16:02:26,896:INFO:choose_better activated
+2026-04-16 16:02:26,896:INFO:SubProcess create_model() called ==================================
+2026-04-16 16:02:26,897:INFO:Initializing create_model()
+2026-04-16 16:02:26,897:INFO:create_model(self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>, estimator=RandomForestClassifier(bootstrap=True, ccp_alpha=0.0, class_weight=None,
+                       criterion='gini', max_depth=None, max_features='sqrt',
+                       max_leaf_nodes=None, max_samples=None,
+                       min_impurity_decrease=0.0, min_samples_leaf=1,
+                       min_samples_split=2, min_weight_fraction_leaf=0.0,
+                       monotonic_cst=None, n_estimators=100, n_jobs=1,
+                       oob_score=False, random_state=42, verbose=0,
+                       warm_start=False), fold=StratifiedKFold(n_splits=3, random_state=None, shuffle=False), round=4, cross_validation=True, predict=True, fit_kwargs={}, groups=None, refit=True, probability_threshold=None, experiment_custom_tags=None, verbose=False, system=False, add_to_model_list=True, metrics=None, display=None, model_only=True, return_train_score=False, error_score=0.0, kwargs={})
+2026-04-16 16:02:26,897:INFO:Checking exceptions
+2026-04-16 16:02:26,898:INFO:Importing libraries
+2026-04-16 16:02:26,898:INFO:Copying training dataset
+2026-04-16 16:02:26,900:INFO:Defining folds
+2026-04-16 16:02:26,900:INFO:Declaring metric variables
+2026-04-16 16:02:26,900:INFO:Importing untrained model
+2026-04-16 16:02:26,900:INFO:Declaring custom model
+2026-04-16 16:02:26,901:INFO:Random Forest Classifier Imported successfully
+2026-04-16 16:02:26,901:INFO:Starting cross validation
+2026-04-16 16:02:26,902:INFO:Cross validating with StratifiedKFold(n_splits=3, random_state=None, shuffle=False), n_jobs=1
+2026-04-16 16:02:27,000:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,001:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,002:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,096:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,098:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,099:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,195:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,196:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,197:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,200:INFO:Calculating mean and std
+2026-04-16 16:02:27,200:INFO:Creating metrics dataframe
+2026-04-16 16:02:27,201:INFO:Finalizing model
+2026-04-16 16:02:27,279:INFO:Uploading results into container
+2026-04-16 16:02:27,279:INFO:Uploading model into container now
+2026-04-16 16:02:27,279:INFO:_master_model_container: 3
+2026-04-16 16:02:27,279:INFO:_display_container: 4
+2026-04-16 16:02:27,279:INFO:RandomForestClassifier(bootstrap=True, ccp_alpha=0.0, class_weight=None,
+                       criterion='gini', max_depth=None, max_features='sqrt',
+                       max_leaf_nodes=None, max_samples=None,
+                       min_impurity_decrease=0.0, min_samples_leaf=1,
+                       min_samples_split=2, min_weight_fraction_leaf=0.0,
+                       monotonic_cst=None, n_estimators=100, n_jobs=1,
+                       oob_score=False, random_state=42, verbose=0,
+                       warm_start=False)
+2026-04-16 16:02:27,280:INFO:create_model() successfully completed......................................
+2026-04-16 16:02:27,429:INFO:SubProcess create_model() end ==================================
+2026-04-16 16:02:27,429:INFO:RandomForestClassifier(bootstrap=True, ccp_alpha=0.0, class_weight=None,
+                       criterion='gini', max_depth=None, max_features='sqrt',
+                       max_leaf_nodes=None, max_samples=None,
+                       min_impurity_decrease=0.0, min_samples_leaf=1,
+                       min_samples_split=2, min_weight_fraction_leaf=0.0,
+                       monotonic_cst=None, n_estimators=100, n_jobs=1,
+                       oob_score=False, random_state=42, verbose=0,
+                       warm_start=False) result for F1 is 0.4314
+2026-04-16 16:02:27,429:INFO:RandomForestClassifier(bootstrap=False, ccp_alpha=0.0,
+                       class_weight='balanced_subsample', criterion='entropy',
+                       max_depth=1, max_features=1.0, max_leaf_nodes=None,
+                       max_samples=None, min_impurity_decrease=0.0002,
+                       min_samples_leaf=5, min_samples_split=7,
+                       min_weight_fraction_leaf=0.0, monotonic_cst=None,
+                       n_estimators=100, n_jobs=1, oob_score=False,
+                       random_state=42, verbose=0, warm_start=False) result for F1 is 0.4399
+2026-04-16 16:02:27,430:INFO:RandomForestClassifier(bootstrap=False, ccp_alpha=0.0,
+                       class_weight='balanced_subsample', criterion='entropy',
+                       max_depth=1, max_features=1.0, max_leaf_nodes=None,
+                       max_samples=None, min_impurity_decrease=0.0002,
+                       min_samples_leaf=5, min_samples_split=7,
+                       min_weight_fraction_leaf=0.0, monotonic_cst=None,
+                       n_estimators=100, n_jobs=1, oob_score=False,
+                       random_state=42, verbose=0, warm_start=False) is best model
+2026-04-16 16:02:27,430:INFO:choose_better completed
+2026-04-16 16:02:27,430:INFO:_master_model_container: 3
+2026-04-16 16:02:27,430:INFO:_display_container: 3
+2026-04-16 16:02:27,430:INFO:RandomForestClassifier(bootstrap=False, ccp_alpha=0.0,
+                       class_weight='balanced_subsample', criterion='entropy',
+                       max_depth=1, max_features=1.0, max_leaf_nodes=None,
+                       max_samples=None, min_impurity_decrease=0.0002,
+                       min_samples_leaf=5, min_samples_split=7,
+                       min_weight_fraction_leaf=0.0, monotonic_cst=None,
+                       n_estimators=100, n_jobs=1, oob_score=False,
+                       random_state=42, verbose=0, warm_start=False)
+2026-04-16 16:02:27,430:INFO:tune_model() successfully completed......................................
+2026-04-16 16:02:27,572:INFO:Initializing save_model()
+2026-04-16 16:02:27,572:INFO:save_model(model=RandomForestClassifier(bootstrap=False, ccp_alpha=0.0,
+                       class_weight='balanced_subsample', criterion='entropy',
+                       max_depth=1, max_features=1.0, max_leaf_nodes=None,
+                       max_samples=None, min_impurity_decrease=0.0002,
+                       min_samples_leaf=5, min_samples_split=7,
+                       min_weight_fraction_leaf=0.0, monotonic_cst=None,
+                       n_estimators=100, n_jobs=1, oob_score=False,
+                       random_state=42, verbose=0, warm_start=False), model_name=./storage/trained_models/latest/rf, prep_pipe_=Pipeline(memory=FastMemory(location=/tmp/joblib),
+         steps=[('label_encoding',
+                 TransformerWrapperWithInverse(exclude=None, include=None,
+                                               transformer=LabelEncoder())),
+                ('numerical_imputer',
+                 TransformerWrapper(exclude=None,
+                                    include=['productid', 'deviceid'],
+                                    transformer=SimpleImputer(add_indicator=False,
+                                                              copy=True,
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing...
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing_values=nan,
+                                                              strategy='most_frequent'))),
+                ('onehot_encoding',
+                 TransformerWrapper(exclude=None,
+                                    include=['universalid', 'name'],
+                                    transformer=OneHotEncoder(cols=['universalid',
+                                                                    'name'],
+                                                              drop_invariant=False,
+                                                              handle_missing='return_nan',
+                                                              handle_unknown='value',
+                                                              return_df=True,
+                                                              use_cat_names=True,
+                                                              verbose=0)))],
+         verbose=False), verbose=True, use_case=MLUsecase.CLASSIFICATION, kwargs={})
+2026-04-16 16:02:27,572:INFO:Adding model into prep_pipe
+2026-04-16 16:02:27,597:INFO:./storage/trained_models/latest/rf.pkl saved in current working directory
+2026-04-16 16:02:27,600:INFO:Pipeline(memory=Memory(location=None),
+         steps=[('label_encoding',
+                 TransformerWrapperWithInverse(exclude=None, include=None,
+                                               transformer=LabelEncoder())),
+                ('numerical_imputer',
+                 TransformerWrapper(exclude=None,
+                                    include=['productid', 'deviceid'],
+                                    transformer=SimpleImputer(add_indicator=False,
+                                                              copy=True,
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing_values=nan...
+                 RandomForestClassifier(bootstrap=False, ccp_alpha=0.0,
+                                        class_weight='balanced_subsample',
+                                        criterion='entropy', max_depth=1,
+                                        max_features=1.0, max_leaf_nodes=None,
+                                        max_samples=None,
+                                        min_impurity_decrease=0.0002,
+                                        min_samples_leaf=5, min_samples_split=7,
+                                        min_weight_fraction_leaf=0.0,
+                                        monotonic_cst=None, n_estimators=100,
+                                        n_jobs=1, oob_score=False,
+                                        random_state=42, verbose=0,
+                                        warm_start=False))],
+         verbose=False)
+2026-04-16 16:02:27,600:INFO:save_model() successfully completed......................................
+2026-04-16 16:02:27,749:INFO:Initializing create_model()
+2026-04-16 16:02:27,749:INFO:create_model(self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>, estimator=nb, fold=None, round=4, cross_validation=True, predict=True, fit_kwargs=None, groups=None, refit=True, probability_threshold=None, experiment_custom_tags=None, verbose=False, system=True, add_to_model_list=True, metrics=None, display=None, model_only=True, return_train_score=False, error_score=0.0, kwargs={})
+2026-04-16 16:02:27,750:INFO:Checking exceptions
+2026-04-16 16:02:27,751:INFO:Importing libraries
+2026-04-16 16:02:27,751:INFO:Copying training dataset
+2026-04-16 16:02:27,753:INFO:Defining folds
+2026-04-16 16:02:27,753:INFO:Declaring metric variables
+2026-04-16 16:02:27,754:INFO:Importing untrained model
+2026-04-16 16:02:27,754:INFO:Naive Bayes Imported successfully
+2026-04-16 16:02:27,754:INFO:Starting cross validation
+2026-04-16 16:02:27,755:INFO:Cross validating with StratifiedKFold(n_splits=3, random_state=None, shuffle=False), n_jobs=1
+2026-04-16 16:02:27,795:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,796:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,798:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,834:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,835:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,837:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,874:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,875:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,876:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:27,879:INFO:Calculating mean and std
+2026-04-16 16:02:27,879:INFO:Creating metrics dataframe
+2026-04-16 16:02:27,880:INFO:Finalizing model
+2026-04-16 16:02:27,901:INFO:Uploading results into container
+2026-04-16 16:02:27,901:INFO:Uploading model into container now
+2026-04-16 16:02:27,901:INFO:_master_model_container: 4
+2026-04-16 16:02:27,901:INFO:_display_container: 4
+2026-04-16 16:02:27,902:INFO:GaussianNB(priors=None, var_smoothing=1e-09)
+2026-04-16 16:02:27,902:INFO:create_model() successfully completed......................................
+2026-04-16 16:02:28,045:INFO:Initializing tune_model()
+2026-04-16 16:02:28,045:INFO:tune_model(estimator=GaussianNB(priors=None, var_smoothing=1e-09), fold=None, round=4, n_iter=10, custom_grid=None, optimize=F1, custom_scorer=None, search_library=scikit-learn, search_algorithm=None, early_stopping=False, early_stopping_max_iters=10, choose_better=True, fit_kwargs=None, groups=None, return_tuner=False, verbose=False, tuner_verbose=True, return_train_score=False, kwargs={}, self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>)
+2026-04-16 16:02:28,045:INFO:Checking exceptions
+2026-04-16 16:02:28,047:INFO:Copying training dataset
+2026-04-16 16:02:28,049:INFO:Checking base model
+2026-04-16 16:02:28,049:INFO:Base model : Naive Bayes
+2026-04-16 16:02:28,049:INFO:Declaring metric variables
+2026-04-16 16:02:28,049:INFO:Defining Hyperparameters
+2026-04-16 16:02:28,203:INFO:Tuning with n_jobs=1
+2026-04-16 16:02:28,203:INFO:Initializing RandomizedSearchCV
+2026-04-16 16:02:28,241:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,274:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,307:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,340:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,372:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,405:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,437:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,469:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,501:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,534:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,566:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,599:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,632:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,664:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,697:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,730:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,762:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,795:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,827:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,859:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,892:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,925:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,957:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:28,989:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,022:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,054:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,087:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,119:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,152:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,183:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,185:INFO:best_params: {'actual_estimator__var_smoothing': 2e-07}
+2026-04-16 16:02:29,185:INFO:Hyperparameter search completed
+2026-04-16 16:02:29,185:INFO:SubProcess create_model() called ==================================
+2026-04-16 16:02:29,185:INFO:Initializing create_model()
+2026-04-16 16:02:29,185:INFO:create_model(self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>, estimator=GaussianNB(priors=None, var_smoothing=1e-09), fold=StratifiedKFold(n_splits=3, random_state=None, shuffle=False), round=4, cross_validation=True, predict=True, fit_kwargs={}, groups=None, refit=True, probability_threshold=None, experiment_custom_tags=None, verbose=True, system=False, add_to_model_list=True, metrics=None, display=<pycaret.internal.display.display.CommonDisplay object at 0x7fa49879aaa0>, model_only=True, return_train_score=False, error_score=0.0, kwargs={'var_smoothing': 2e-07})
+2026-04-16 16:02:29,185:INFO:Checking exceptions
+2026-04-16 16:02:29,185:INFO:Importing libraries
+2026-04-16 16:02:29,185:INFO:Copying training dataset
+2026-04-16 16:02:29,186:INFO:Defining folds
+2026-04-16 16:02:29,186:INFO:Declaring metric variables
+2026-04-16 16:02:29,186:INFO:Importing untrained model
+2026-04-16 16:02:29,186:INFO:Declaring custom model
+2026-04-16 16:02:29,187:INFO:Naive Bayes Imported successfully
+2026-04-16 16:02:29,187:INFO:Starting cross validation
+2026-04-16 16:02:29,187:INFO:Cross validating with StratifiedKFold(n_splits=3, random_state=None, shuffle=False), n_jobs=1
+2026-04-16 16:02:29,223:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,224:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,225:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,261:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,262:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,264:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,299:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,300:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,301:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,304:INFO:Calculating mean and std
+2026-04-16 16:02:29,304:INFO:Creating metrics dataframe
+2026-04-16 16:02:29,305:INFO:Finalizing model
+2026-04-16 16:02:29,327:INFO:Uploading results into container
+2026-04-16 16:02:29,327:INFO:Uploading model into container now
+2026-04-16 16:02:29,327:INFO:_master_model_container: 5
+2026-04-16 16:02:29,327:INFO:_display_container: 5
+2026-04-16 16:02:29,327:INFO:GaussianNB(priors=None, var_smoothing=2e-07)
+2026-04-16 16:02:29,327:INFO:create_model() successfully completed......................................
+2026-04-16 16:02:29,494:INFO:SubProcess create_model() end ==================================
+2026-04-16 16:02:29,495:INFO:choose_better activated
+2026-04-16 16:02:29,495:INFO:SubProcess create_model() called ==================================
+2026-04-16 16:02:29,495:INFO:Initializing create_model()
+2026-04-16 16:02:29,495:INFO:create_model(self=<pycaret.classification.oop.ClassificationExperiment object at 0x7fa61471e290>, estimator=GaussianNB(priors=None, var_smoothing=1e-09), fold=StratifiedKFold(n_splits=3, random_state=None, shuffle=False), round=4, cross_validation=True, predict=True, fit_kwargs={}, groups=None, refit=True, probability_threshold=None, experiment_custom_tags=None, verbose=False, system=False, add_to_model_list=True, metrics=None, display=None, model_only=True, return_train_score=False, error_score=0.0, kwargs={})
+2026-04-16 16:02:29,495:INFO:Checking exceptions
+2026-04-16 16:02:29,496:INFO:Importing libraries
+2026-04-16 16:02:29,496:INFO:Copying training dataset
+2026-04-16 16:02:29,499:INFO:Defining folds
+2026-04-16 16:02:29,499:INFO:Declaring metric variables
+2026-04-16 16:02:29,499:INFO:Importing untrained model
+2026-04-16 16:02:29,499:INFO:Declaring custom model
+2026-04-16 16:02:29,499:INFO:Naive Bayes Imported successfully
+2026-04-16 16:02:29,499:INFO:Starting cross validation
+2026-04-16 16:02:29,501:INFO:Cross validating with StratifiedKFold(n_splits=3, random_state=None, shuffle=False), n_jobs=1
+2026-04-16 16:02:29,540:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,541:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,543:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,579:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,580:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,581:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,617:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,618:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,620:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'ODD_ID') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+  warnings.warn(
+
+2026-04-16 16:02:29,622:INFO:Calculating mean and std
+2026-04-16 16:02:29,622:INFO:Creating metrics dataframe
+2026-04-16 16:02:29,623:INFO:Finalizing model
+2026-04-16 16:02:29,644:INFO:Uploading results into container
+2026-04-16 16:02:29,644:INFO:Uploading model into container now
+2026-04-16 16:02:29,645:INFO:_master_model_container: 6
+2026-04-16 16:02:29,645:INFO:_display_container: 6
+2026-04-16 16:02:29,645:INFO:GaussianNB(priors=None, var_smoothing=1e-09)
+2026-04-16 16:02:29,645:INFO:create_model() successfully completed......................................
+2026-04-16 16:02:29,793:INFO:SubProcess create_model() end ==================================
+2026-04-16 16:02:29,793:INFO:GaussianNB(priors=None, var_smoothing=1e-09) result for F1 is 0.3497
+2026-04-16 16:02:29,794:INFO:GaussianNB(priors=None, var_smoothing=2e-07) result for F1 is 0.376
+2026-04-16 16:02:29,794:INFO:GaussianNB(priors=None, var_smoothing=2e-07) is best model
+2026-04-16 16:02:29,794:INFO:choose_better completed
+2026-04-16 16:02:29,794:INFO:_master_model_container: 6
+2026-04-16 16:02:29,795:INFO:_display_container: 5
+2026-04-16 16:02:29,795:INFO:GaussianNB(priors=None, var_smoothing=2e-07)
+2026-04-16 16:02:29,795:INFO:tune_model() successfully completed......................................
+2026-04-16 16:02:29,952:INFO:Initializing save_model()
+2026-04-16 16:02:29,952:INFO:save_model(model=GaussianNB(priors=None, var_smoothing=2e-07), model_name=./storage/trained_models/latest/nb, prep_pipe_=Pipeline(memory=FastMemory(location=/tmp/joblib),
+         steps=[('label_encoding',
+                 TransformerWrapperWithInverse(exclude=None, include=None,
+                                               transformer=LabelEncoder())),
+                ('numerical_imputer',
+                 TransformerWrapper(exclude=None,
+                                    include=['productid', 'deviceid'],
+                                    transformer=SimpleImputer(add_indicator=False,
+                                                              copy=True,
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing...
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing_values=nan,
+                                                              strategy='most_frequent'))),
+                ('onehot_encoding',
+                 TransformerWrapper(exclude=None,
+                                    include=['universalid', 'name'],
+                                    transformer=OneHotEncoder(cols=['universalid',
+                                                                    'name'],
+                                                              drop_invariant=False,
+                                                              handle_missing='return_nan',
+                                                              handle_unknown='value',
+                                                              return_df=True,
+                                                              use_cat_names=True,
+                                                              verbose=0)))],
+         verbose=False), verbose=True, use_case=MLUsecase.CLASSIFICATION, kwargs={})
+2026-04-16 16:02:29,953:INFO:Adding model into prep_pipe
+2026-04-16 16:02:29,956:INFO:./storage/trained_models/latest/nb.pkl saved in current working directory
+2026-04-16 16:02:29,959:INFO:Pipeline(memory=Memory(location=None),
+         steps=[('label_encoding',
+                 TransformerWrapperWithInverse(exclude=None, include=None,
+                                               transformer=LabelEncoder())),
+                ('numerical_imputer',
+                 TransformerWrapper(exclude=None,
+                                    include=['productid', 'deviceid'],
+                                    transformer=SimpleImputer(add_indicator=False,
+                                                              copy=True,
+                                                              fill_value=None,
+                                                              keep_empty_features=False,
+                                                              missing_values=nan...
+                                                              strategy='most_frequent'))),
+                ('onehot_encoding',
+                 TransformerWrapper(exclude=None,
+                                    include=['universalid', 'name'],
+                                    transformer=OneHotEncoder(cols=['universalid',
+                                                                    'name'],
+                                                              drop_invariant=False,
+                                                              handle_missing='return_nan',
+                                                              handle_unknown='value',
+                                                              return_df=True,
+                                                              use_cat_names=True,
+                                                              verbose=0))),
+                ('trained_model',
+                 GaussianNB(priors=None, var_smoothing=2e-07))],
+         verbose=False)
+2026-04-16 16:02:29,959:INFO:save_model() successfully completed......................................
+2026-04-16 16:02:36,186:WARNING:/home/yhz/miniconda3/envs/local_iot/lib/python3.10/site-packages/ray/tune/experiment/experiment.py:170: UserWarning: The `local_dir` argument of `Experiment is deprecated. Use `storage_path` or set the `TUNE_RESULT_DIR` environment variable instead.
+  warnings.warn(
+
