@@ -221,7 +221,10 @@ def detect_column_types(df, target_col):
 # ==========================================
 # 后台异步训练引擎 (全动态多模态融合版) - 增加调试日志
 # ==========================================
-def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, label_column: str):
+# ==========================================
+# 后台异步训练引擎 (全动态多模态融合版) - 增加调试日志
+# ==========================================
+def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, label_column: str, selected_models_list: list):
     model_root = "./storage/trained_models/latest"
     if os.path.exists(model_root):
         shutil.rmtree(model_root)   # ⭐直接删整个 latest（最干净）
@@ -309,180 +312,202 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
             }
             setup(**setup_kwargs)
 
-            for model_code in ['rf', 'nb']:
-                model_name = f"{model_code.upper()}_AutoFeat"
-                try:
-                    trained_model = create_model(model_code, verbose=False)
-                    tuned_model = tune_model(trained_model, optimize='F1', n_iter=10, verbose=False)
-                    metrics_df = pull()
+            # --- 修改：只训练选中的 PyCaret 模型 ---
+            py_caret_map = {'rf': 'RF_AutoFeat', 'nb': 'NB_AutoFeat'}
+            for model_code, full_name in py_caret_map.items():
+                if full_name in selected_models_list: # 检查是否被选中
+                    model_name = full_name
+                    try:
+                        trained_model = create_model(model_code, verbose=False)
+                        tuned_model = tune_model(trained_model, optimize='F1', n_iter=10, verbose=False)
+                        metrics_df = pull()
 
-                    f1_score = metrics_df.loc['Mean', 'F1']
-                    accuracy = metrics_df.loc['Mean', 'Accuracy']
-                    out_path = f"./storage/trained_models/latest/{model_code.lower()}"
-                    save_model(tuned_model, out_path)
+                        f1_score = metrics_df.loc['Mean', 'F1']
+                        accuracy = metrics_df.loc['Mean', 'Accuracy']
+                        out_path = f"./storage/trained_models/latest/{model_code.lower()}"
+                        save_model(tuned_model, out_path)
 
-                    leaderboard.append({
-                        "model_name": model_name, "f1_score": round(float(f1_score), 4),
-                        "accuracy": round(float(accuracy), 4), "model_path": out_path + ".pkl"
-                    })
-                except Exception as e:
-                    logger.error(f"❌ {model_name} 训练异常: {str(e)}")
+                        leaderboard.append({
+                            "model_name": model_name, "f1_score": round(float(f1_score), 4),
+                            "accuracy": round(float(accuracy), 4), "model_path": out_path + ".pkl"
+                        })
+                        # 实时更新状态，报告单个模型完成
+                        write_task("running", f"PyCaret 模型完成: {model_name}", leaderboard)
+                    except Exception as e:
+                        logger.error(f"❌ {model_name} 训练异常: {str(e)}")
+                        # 添加失败记录
+                        leaderboard.append({
+                            "model_name": model_name, "f1_score": 0.0,
+                            "accuracy": 0.0, "model_path": None
+                        })
+                        write_task("running", f"PyCaret 模型失败: {model_name}", leaderboard)
+
 
         # ================== 引擎 2：Ludwig 深度学习超参搜索 ==================
         write_task("running", "开始 Ludwig 训练")
-        for base_model_name, base_encoder_config in LUDWIG_ALGORITHMS.items():
-            name = f"{base_model_name}_Hyperopt_AutoFeat"
-            write_task("running", f"正在训练 Ludwig 模型: {name}")
-            temp_dataset_path = f"./storage/datasets/temp_{task_id}_{uuid.uuid4()}.csv"
-            df.to_csv(temp_dataset_path, index=False)
+        # --- 修改：只训练选中的 Ludwig 模型 ---
+        ludwig_map = {k: f"{k}_Hyperopt_AutoFeat" for k in LUDWIG_ALGORITHMS.keys()}
+        for base_model_name, full_name in ludwig_map.items():
+            if full_name in selected_models_list: # 检查是否被选中
+                name = full_name
+                write_task("running", f"正在训练 Ludwig 模型: {name}")
+                temp_dataset_path = f"./storage/datasets/temp_{task_id}_{uuid.uuid4()}.csv"
+                df.to_csv(temp_dataset_path, index=False)
 
-            # 动态组装当前模型的输入特征
-                        # --- 防御性修复：再次确保 label_column 不被加入 input_features ---
-            input_features = []
-            for col_name, col_type in column_types.items():
-                if col_type == 'skip' or col_name == label_column: # ⭐ 额外检查
-                    continue
-                elif col_type == 'text':
-                    input_features.append({
-                        "name": col_name, "type": "text", "encoder": base_encoder_config,
-                        "preprocessing": {"tokenizer": "characters"} # 中文必须按字切分
-                    })
-                elif col_type == 'number':
-                    input_features.append({"name": col_name, "type": "number"})
-                elif col_type == 'category':
-                    input_features.append({"name": col_name, "type": "category"})
+                # 动态组装当前模型的输入特征
+                # --- 防御性修复：再次确保 label_column 不被加入 input_features ---
+                input_features = []
+                for col_name, col_type in column_types.items():
+                    if col_type == 'skip' or col_name == label_column: # ⭐ 额外检查
+                        continue
+                    elif col_type == 'text':
+                        input_features.append({
+                            "name": col_name, "type": "text", "encoder": LUDWIG_ALGORITHMS[base_model_name],
+                            "preprocessing": {"tokenizer": "characters"} # 中文必须按字切分
+                        })
+                    elif col_type == 'number':
+                        input_features.append({"name": col_name, "type": "number"})
+                    elif col_type == 'category':
+                        input_features.append({"name": col_name, "type": "category"})
 
-                        # --- 防御性修复：再次确保 label_column 不被加入 input_features ---
-            # 这是一个额外的安全网，以防 detect_column_types 有任何遗漏
-            filtered_input_features = []
-            for feat in input_features:
-                if feat["name"] == label_column:
-                    logger.warning(f"⚠️ [DEFENSE] Column '{label_column}' was found in raw input_features but has been removed. This should ideally be handled by detect_column_types.")
-                    continue # 跳过这个特征
-                filtered_input_features.append(feat)
+                # --- 防御性修复：再次确保 label_column 不被加入 input_features ---
+                # 这是一个额外的安全网，以防 detect_column_types 有任何遗漏
+                filtered_input_features = []
+                for feat in input_features:
+                    if feat["name"] == label_column:
+                        logger.warning(f"⚠️ [DEFENSE] Column '{label_column}' was found in raw input_features but has been removed. This should ideally be handled by detect_column_types.")
+                        continue # 跳过这个特征
+                    filtered_input_features.append(feat)
 
-            input_features = filtered_input_features # 更新 input_features 列表
+                input_features = filtered_input_features # 更新 input_features 列表
 
-            # --- 调试日志：确认最终的 input_features ---
-            final_input_names = [f["name"] for f in input_features]
-            print(f"[DEBUG] Task {task_id} - Final Ludwig input features for {base_model_name}: {final_input_names}")
-            print(f"[DEBUG] Task {task_id} - Text features for {base_model_name}: {[f['name'] for f in input_features if f['type'] == 'text']}")
-            if label_column in final_input_names:
-                logger.critical(f"🚨 [CRITICAL ERROR] Task {task_id} - {base_model_name}: Label column '{label_column}' is STILL present in final input_features after ALL filters! Aborting this model.")
-                continue # 如果发生，跳过此模型训练
-            else:
-                logger.info(f"✅ [INFO] Task {task_id} - {base_model_name}: Label column '{label_column}' correctly excluded from final input features. Proceeding.")
-            # --- END 调试日志 ---
-            # --- END 调试日志 ---
-            hyperopt_params = {
-                "trainer.learning_rate": {"space": "choice", "categories":[0.001, 0.0005]},
-                "trainer.batch_size": {"space": "choice", "categories": [8, 16]}
-            }
-            if first_text_col:
-                hyperopt_params[f"input_features.{first_text_col}.encoder.dropout"] = {"space": "uniform", "lower": 0.0, "upper": 0.3}
-
-            config = {
-                "input_features": input_features,
-                "output_features":[{"name": label_column, "type": "category"}],
-                "backend": {"type": "local"}, # 强行拦截 Ray Data 防止 OOM
-                "preprocessing": {
-                    "split": {
-                        "type": "random",
-                        "probabilities": [train_ratio, (1.0 - train_ratio) / 2.0, (1.0 - train_ratio) / 2.0]
-                    }
-                },
-                "trainer": {
-                    # 控制单模型训练时长，避免“看起来一直不结束”
-                    "epochs": 2,
-                    "early_stop": 2
-                },
-                "hyperopt": {
-                    # 当前 Ludwig 版本不支持 f1_score_macro 作为 hyperopt metric，改用兼容指标避免 schema 校验失败
-                    "goal": "maximize", "metric": "accuracy_micro", "output_feature": label_column,
-                    "search_alg": {"type": "hyperopt"},
-                    "executor": {"type": "ray", "num_samples": 1, "max_concurrent_trials": 1},
-                    "parameters": hyperopt_params
+                # --- 调试日志：确认最终的 input_features ---
+                final_input_names = [f["name"] for f in input_features]
+                print(f"[DEBUG] Task {task_id} - Final Ludwig input features for {base_model_name}: {final_input_names}")
+                print(f"[DEBUG] Task {task_id} - Text features for {base_model_name}: {[f['name'] for f in input_features if f['type'] == 'text']}")
+                if label_column in final_input_names:
+                    logger.critical(f"🚨 [CRITICAL ERROR] Task {task_id} - {base_model_name}: Label column '{label_column}' is STILL present in final input_features after ALL filters! Aborting this model.")
+                    continue # 如果发生，跳过此模型训练
+                else:
+                    logger.info(f"✅ [INFO] Task {task_id} - {base_model_name}: Label column '{label_column}' correctly excluded from final input features. Proceeding.")
+                # --- END 调试日志 ---
+                
+                hyperopt_params = {
+                    "trainer.learning_rate": {"space": "choice", "categories":[0.001, 0.0005]},
+                    "trainer.batch_size": {"space": "choice", "categories": [8, 16]}
                 }
-            }
-            out_dir = f"./storage/trained_models/latest/{name}"
-            if os.path.exists(out_dir):
-                shutil.rmtree(out_dir, ignore_errors=True)
-            try:
-                hyperopt_results = hyperopt(config=config, dataset=temp_dataset_path, output_directory=out_dir)
-                # ================== ⭐ 固定模型输出（核心修改） ==================
-                import glob
+                if first_text_col:
+                    hyperopt_params[f"input_features.{first_text_col}.encoder.dropout"] = {"space": "uniform", "lower": 0.0, "upper": 0.3}
 
+                config = {
+                    "input_features": input_features,
+                    "output_features":[{"name": label_column, "type": "category"}],
+                    "backend": {"type": "local"}, # 强行拦截 Ray Data 防止 OOM
+                    "preprocessing": {
+                        "split": {
+                            "type": "random",
+                            "probabilities": [train_ratio, (1.0 - train_ratio) / 2.0, (1.0 - train_ratio) / 2.0]
+                        }
+                    },
+                    "trainer": {
+                        # 控制单模型训练时长，避免“看起来一直不结束”
+                        "epochs": 2,
+                        "early_stop": 2
+                    },
+                    "hyperopt": {
+                        # 当前 Ludwig 版本不支持 f1_score_macro 作为 hyperopt metric，改用兼容指标避免 schema 校验失败
+                        "goal": "maximize", "metric": "accuracy_micro", "output_feature": label_column,
+                        "search_alg": {"type": "hyperopt"},
+                        "executor": {"type": "ray", "num_samples": 1, "max_concurrent_trials": 1},
+                        "parameters": hyperopt_params
+                    }
+                }
+                out_dir = f"./storage/trained_models/latest/{name}"
+                if os.path.exists(out_dir):
+                    shutil.rmtree(out_dir, ignore_errors=True)
                 try:
-                    # 找到所有 trial
-                    trial_dirs = glob.glob(os.path.join(out_dir, "hyperopt", "trial_*"))
-                    if not trial_dirs:
-                        raise Exception("没有找到 trial 目录")
+                    hyperopt_results = hyperopt(config=config, dataset=temp_dataset_path, output_directory=out_dir)
+                    # ================== ⭐ 固定模型输出（核心修改） ==================
+                    import glob
 
-                    # 取最新 trial
-                    latest_trial = max(trial_dirs, key=os.path.getctime)
+                    try:
+                        # 找到所有 trial
+                        trial_dirs = glob.glob(os.path.join(out_dir, "hyperopt", "trial_*"))
+                        if not trial_dirs:
+                            raise Exception("没有找到 trial 目录")
 
-                    # 找 checkpoint
-                    checkpoint_dirs = glob.glob(os.path.join(latest_trial, "checkpoint_*"))
-                    if not checkpoint_dirs:
-                        raise Exception("没有找到 checkpoint")
+                        # 取最新 trial
+                        latest_trial = max(trial_dirs, key=os.path.getctime)
 
-                    # 取最新 checkpoint（通常就是最终模型）
-                    best_checkpoint = max(checkpoint_dirs, key=os.path.getctime)
+                        # 找 checkpoint
+                        checkpoint_dirs = glob.glob(os.path.join(latest_trial, "checkpoint_*"))
+                        if not checkpoint_dirs:
+                            raise Exception("没有找到 checkpoint")
 
-                    # 源模型路径
-                    src_model = os.path.join(best_checkpoint, "model")
+                        # 取最新 checkpoint（通常就是最终模型）
+                        best_checkpoint = max(checkpoint_dirs, key=os.path.getctime)
 
-                    # ⭐ 固定输出路径（关键）
-                    dst_model = os.path.join(out_dir, "model")
+                        # 源模型路径
+                        src_model = os.path.join(best_checkpoint, "model")
 
-                    # 删除旧模型
-                    if os.path.exists(dst_model):
-                        shutil.rmtree(dst_model, ignore_errors=True)
+                        # ⭐ 固定输出路径（关键）
+                        dst_model = os.path.join(out_dir, "model")
 
-                    # 拷贝最终模型
-                    shutil.copytree(src_model, dst_model)
+                        # 删除旧模型
+                        if os.path.exists(dst_model):
+                            shutil.rmtree(dst_model, ignore_errors=True)
 
-                    logger.info(f"✅ 已提取最终模型到: {dst_model}")
+                        # 拷贝最终模型
+                        shutil.copytree(src_model, dst_model)
 
+                        logger.info(f"✅ 已提取最终模型到: {dst_model}")
+
+                    except Exception as e:
+                        logger.error(f"❌ 提取最终模型失败: {str(e)}")
+                                        # ================== ⭐ 清理 hyperopt（节省空间） ==================
+                    try:
+                        hyperopt_dir = os.path.join(out_dir, "hyperopt")
+                        if os.path.exists(hyperopt_dir):
+                            shutil.rmtree(hyperopt_dir, ignore_errors=True)
+                            logger.info("🧹 已清理 hyperopt 临时文件")
+                    except Exception as e:
+                        logger.warning(f"清理 hyperopt 失败: {str(e)}")
+                    best_trial_result = hyperopt_results.experiment_analysis.best_result
+                    if not isinstance(best_trial_result, dict): raise TypeError("返回格式异常")
+
+                    eval_stats_raw = best_trial_result.get('eval_stats', {})
+                    eval_stats = json.loads(eval_stats_raw) if isinstance(eval_stats_raw, str) else eval_stats_raw
+
+                    overall_stats = eval_stats.get(label_column, {}).get('overall_stats', {})
+                    best_f1 = (
+                        overall_stats.get('avg_f1_score_macro')
+                        or overall_stats.get('f1_score_macro')
+                        or overall_stats.get('avg_f1_score_weighted')
+                        or overall_stats.get('f1_score')
+                        or overall_stats.get('avg_f1_score_micro')
+                        or 0.0
+                    )
+                    best_acc = overall_stats.get('accuracy') or overall_stats.get('accuracy_micro') or 0.0
+
+                    leaderboard.append({
+                        "model_name": name, "f1_score": round(float(best_f1), 4),
+                        "accuracy": round(float(best_acc), 4), "model_path": out_dir
+                    })
+                    # 实时更新状态，报告单个 Ludwig 模型完成
+                    write_task("running", f"Ludwig 模型完成: {name}", leaderboard)
                 except Exception as e:
-                    logger.error(f"❌ 提取最终模型失败: {str(e)}")
-                                    # ================== ⭐ 清理 hyperopt（节省空间） ==================
-                try:
-                    hyperopt_dir = os.path.join(out_dir, "hyperopt")
-                    if os.path.exists(hyperopt_dir):
-                        shutil.rmtree(hyperopt_dir, ignore_errors=True)
-                        logger.info("🧹 已清理 hyperopt 临时文件")
-                except Exception as e:
-                    logger.warning(f"清理 hyperopt 失败: {str(e)}")
-                best_trial_result = hyperopt_results.experiment_analysis.best_result
-                if not isinstance(best_trial_result, dict): raise TypeError("返回格式异常")
+                    logger.error(f"❌ {name} 异常: {str(e)}")
+                    # 添加失败记录
+                    leaderboard.append({
+                        "model_name": name, "f1_score": 0.0,
+                        "accuracy": 0.0, "model_path": None
+                    })
+                    write_task("running", f"Ludwig 模型失败: {name}，原因: {str(e)}", leaderboard)
+                finally:
+                    if os.path.exists(temp_dataset_path): os.remove(temp_dataset_path)
 
-                eval_stats_raw = best_trial_result.get('eval_stats', {})
-                eval_stats = json.loads(eval_stats_raw) if isinstance(eval_stats_raw, str) else eval_stats_raw
-
-                overall_stats = eval_stats.get(label_column, {}).get('overall_stats', {})
-                best_f1 = (
-                    overall_stats.get('avg_f1_score_macro')
-                    or overall_stats.get('f1_score_macro')
-                    or overall_stats.get('avg_f1_score_weighted')
-                    or overall_stats.get('f1_score')
-                    or overall_stats.get('avg_f1_score_micro')
-                    or 0.0
-                )
-                best_acc = overall_stats.get('accuracy') or overall_stats.get('accuracy_micro') or 0.0
-
-                leaderboard.append({
-                    "model_name": name, "f1_score": round(float(best_f1), 4),
-                    "accuracy": round(float(best_acc), 4), "model_path": out_dir
-                })
-                write_task("running", f"模型完成: {name}", leaderboard)
-            except Exception as e:
-                logger.error(f"❌ {name} 异常: {str(e)}")
-                write_task("running", f"模型失败并跳过: {name}，原因: {str(e)}", leaderboard)
-            finally:
-                if os.path.exists(temp_dataset_path): os.remove(temp_dataset_path)
-        # 统一写入排行榜
-        leaderboard = sorted(leaderboard, key=lambda x: x['f1_score'], reverse=True)
+        # 训练结束后，对排行榜进行排序
+        leaderboard[:] = sorted(leaderboard, key=lambda x: x['f1_score'], reverse=True) # 使用 slice [:] 来就地修改
         write_task("completed", "训练完成", leaderboard)
 
     except Exception as e:
@@ -517,13 +542,15 @@ async def list_dataset_files(folder_name: str):
     files =[f for f in all_items if os.path.isfile(os.path.join(folder_path, f)) and os.path.splitext(f)[1].lower() in allowed_extensions]
     return {"code": 200, "files": files}
 
+# 在 app.post("/api/train/start") 中添加参数
 @app.post("/api/train/start")
 async def start_training(
     background_tasks: BackgroundTasks, 
     folder_name: str = Form(...),
     file_names: str = Form(...),
     train_ratio: float = Form(...),
-    label_column: str = Form(...)  # 前端传入的自定义标签列
+    label_column: str = Form(...),
+    selected_models: str = Form(...)  # 接收前端传递的 JSON 字符串
 ):
     folder_path = os.path.join(DATASET_ROOT_PATH, folder_name)
     if not os.path.exists(folder_path):
@@ -538,10 +565,18 @@ async def start_training(
     if not file_paths:
         raise HTTPException(status_code=400, detail="没有有效的文件路径用于训练。")
 
-    task_id = str(uuid.uuid4())
-    background_tasks.add_task(run_hybrid_pipeline, task_id, file_paths, train_ratio, label_column)
-    return {"code": 200, "task_id": task_id}
+    # 解析选中的模型
+    try:
+        selected_models_list = json.loads(selected_models)
+        if not isinstance(selected_models_list, list):
+            raise ValueError("selected_models 必须是一个列表")
+    except (json.JSONDecodeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"selected_models 格式错误: {e}")
 
+    task_id = str(uuid.uuid4())
+    # 将 selected_models_list 传递给后台任务
+    background_tasks.add_task(run_hybrid_pipeline, task_id, file_paths, train_ratio, label_column, selected_models_list)
+    return {"code": 200, "task_id": task_id}
 @app.get("/api/train/status/{task_id}")
 async def get_train_status(task_id: str):
     task_file = f"./storage/tasks/{task_id}.json"
@@ -585,7 +620,6 @@ async def deploy_model_from_table(model_name: str = Form(...), model_id: str = F
         return {"code": 200, "msg": f"{model_name} 部署成功！"}
     except Exception as e:
         return {"code": 500, "msg": f"加载失败: {str(e)}"}
-
 # ==========================================
 # 【核心修改】多属性在线推理预测接口
 # ==========================================
