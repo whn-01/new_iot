@@ -1,5 +1,0 @@
-{
-  "input_features.text.encoder.dropout": 0.1661567578247278,
-  "trainer.batch_size": 64,
-  "trainer.learning_rate": 0.001
-}

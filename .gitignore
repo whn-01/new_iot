@@ -1,1 +1,25 @@
-node_modules
+# Python
+__pycache__/
+*.pyc
+
+# 日志
+*.log
+
+# Node
+node_modules/
+
+# 模型/数据
+*.csv
+*.pkl
+output/
+results/
+
+# ⭐ 忽略训练模型（你要的）
+banckend/storage/trained_models/
+
+# 可选：如果数据也不想传
+# banckend/storage/datasets/
+
+# 忽略本地源码
+ludwig/
+pycaret/
