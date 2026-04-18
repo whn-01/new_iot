@@ -19,8 +19,13 @@ import subprocess
 import threading
 import time
 import ray
+import multiprocessing
 from typing import Dict, Any
 import re
+import warnings
+from functools import partial
+from ray.tune.utils.util import wait_for_gpu as ray_wait_for_gpu
+import ludwig.hyperopt.execution as ludwig_hyperopt_execution
 
 # 将 Python 默认的 1000 层递归限制调高到 100000 层，防止 Ray 打包时堆栈溢出崩溃！
 sys.setrecursionlimit(100000)
@@ -28,6 +33,19 @@ sys.setrecursionlimit(100000)
 # --- 配置日志 ---
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
+warnings.filterwarnings("ignore", message=".*no more leaves that meet the split requirements.*", category=UserWarning)
+
+def patch_ludwig_gpu_wait(target_util: float = 0.2, retry: int = 20, delay_s: int = 2):
+    """
+    放宽 Ludwig/Ray 的 GPU 空闲等待阈值，避免因显存常驻占用(如 8%-10%)导致 trial 直接失败。
+    Ray 默认 target_util=0.01 在桌面环境常常过严。
+    """
+    ludwig_hyperopt_execution.wait_for_gpu = partial(
+        ray_wait_for_gpu, target_util=target_util, retry=retry, delay_s=delay_s
+    )
+    logger.warning(
+        f"⚙️ 已放宽 Ludwig GPU 等待阈值: target_util={target_util}, retry={retry}, delay_s={delay_s}"
+    )
 
 # ==========================================
 # 原有逻辑保留：GPU 信息获取相关函数
@@ -128,8 +146,68 @@ def get_gpu_info():
     except Exception as e:
         return get_gpu_info_via_nvidia_smi()
 
-# --- 初始化 Ray ---
-ray.init(num_cpus=2, ignore_reinit_error=True)
+def detect_gpu_runtime_profile() -> Dict[str, Any]:
+    """探测当前机器 GPU 资源与可用的 Ray accelerator_type 资源名。"""
+    profile = {
+        "has_gpu": False,
+        "gpu_count": 0,
+        "gpu_names": [],
+        "max_gpu_total_memory_gb": 0.0,
+        "accelerator_resource_key": None,
+    }
+    try:
+        info = get_gpu_info()
+        gpu_names = [g.get("name", "") for g in info if g.get("name")]
+        profile["gpu_names"] = gpu_names
+        profile["gpu_count"] = len(gpu_names)
+        profile["has_gpu"] = len(gpu_names) > 0
+        total_memories = [float(g.get("total_memory", 0)) / (1024 ** 3) for g in info if g.get("total_memory")]
+        if total_memories:
+            profile["max_gpu_total_memory_gb"] = max(total_memories)
+    except Exception:
+        pass
+    return profile
+
+
+def initialize_ray_runtime() -> Dict[str, Any]:
+    """
+    动态初始化 Ray：
+    - CPU 根据机器核数自动分配（保留至少 2 核，避免挤占系统）
+    - GPU 根据实际数量自动分配
+    - 尝试识别并记录 accelerator_type:* 资源，供 trial_driver_resources 使用
+    """
+    profile = detect_gpu_runtime_profile()
+    total_cpus = multiprocessing.cpu_count()
+    ray_cpus = max(2, total_cpus - 2) if total_cpus > 4 else total_cpus
+    ray_gpus = profile["gpu_count"] if profile["has_gpu"] else 0
+
+    ray.init(num_cpus=ray_cpus, num_gpus=ray_gpus, ignore_reinit_error=True)
+    patch_ludwig_gpu_wait()
+
+    try:
+        available_resources = ray.available_resources()
+        accelerator_keys = [k for k in available_resources.keys() if str(k).startswith("accelerator_type:")]
+        if accelerator_keys:
+            # 优先使用 RTX 资源；否则使用第一个可用 accelerator_type
+            rtx_keys = [k for k in accelerator_keys if "RTX" in str(k).upper()]
+            profile["accelerator_resource_key"] = rtx_keys[0] if rtx_keys else accelerator_keys[0]
+        logger.warning(
+            "Ray initialized with CPUs=%s, GPUs=%s, accelerator_key=%s, resources=%s",
+            ray_cpus,
+            ray_gpus,
+            profile["accelerator_resource_key"],
+            available_resources,
+        )
+    except Exception as e:
+        logger.warning(f"读取 Ray 资源失败: {e}")
+
+    profile["ray_cpus"] = ray_cpus
+    profile["ray_gpus"] = ray_gpus
+    return profile
+
+
+# --- 初始化 Ray（动态） ---
+RAY_RUNTIME_PROFILE = initialize_ray_runtime()
 
 app = FastAPI()
 
@@ -154,6 +232,68 @@ LUDWIG_ALGORITHMS = {
     "Vanilla-RNN": {"type": "rnn", "cell_type": "rnn"},
     "FastText-Embed": {"type": "embed"}
 }
+
+def has_available_gpu() -> bool:
+    return bool(RAY_RUNTIME_PROFILE.get("has_gpu", False))
+
+def build_gpu_train_config(use_gpu: bool) -> Dict[str, Any]:
+    """
+    GPU 相关配置统一入口，避免散落在主流程里。
+    """
+    ludwig_executor = {
+        "type": "ray",
+        "num_samples": 1,
+        "max_concurrent_trials": 1,
+        # 单 trial 给足 CPU，按机器核数动态提升，避免 GPU 吃不满
+        "cpu_resources_per_trial": max(1, min(4, int(RAY_RUNTIME_PROFILE.get("ray_cpus", 2) // 2))),
+        "gpu_resources_per_trial": 1 if use_gpu else 0,
+    }
+
+    accelerator_resource_key = RAY_RUNTIME_PROFILE.get("accelerator_resource_key")
+    if use_gpu and accelerator_resource_key:
+        # 显式占用 accelerator_type，避免面板显示 0.0/1.0 accelerator_type:RTX
+        ludwig_executor["trial_driver_resources"] = {accelerator_resource_key: 1.0}
+
+    return {
+        "pycaret_use_gpu": use_gpu,
+        "ludwig_executor": ludwig_executor,
+        "ludwig_scaling_config": {"use_gpu": use_gpu}
+    }
+
+
+def get_ludwig_dynamic_train_profile(use_gpu: bool) -> Dict[str, Any]:
+    """
+    基于当前机器显存动态设定训练强度，提高 GPU 利用率。
+    """
+    if not use_gpu:
+        return {
+            "batch_candidates": [16, 32],
+            "default_batch_size": 16,
+            "epochs": 5,
+            "early_stop": 2,
+        }
+
+    max_mem_gb = float(RAY_RUNTIME_PROFILE.get("max_gpu_total_memory_gb", 0.0))
+    if max_mem_gb >= 20:
+        return {
+            "batch_candidates": [64, 128],
+            "default_batch_size": 64,
+            "epochs": 10,
+            "early_stop": 3,
+        }
+    if max_mem_gb >= 10:
+        return {
+            "batch_candidates": [32, 64],
+            "default_batch_size": 32,
+            "epochs": 8,
+            "early_stop": 3,
+        }
+    return {
+        "batch_candidates": [16, 32],
+        "default_batch_size": 16,
+        "epochs": 6,
+        "early_stop": 2,
+    }
 
 # ==========================================
 # 【核心修改】自动特征检测函数
@@ -221,9 +361,6 @@ def detect_column_types(df, target_col):
 # ==========================================
 # 后台异步训练引擎 (全动态多模态融合版) - 增加调试日志
 # ==========================================
-# ==========================================
-# 后台异步训练引擎 (全动态多模态融合版) - 增加调试日志
-# ==========================================
 def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, label_column: str, selected_models_list: list):
     model_root = "./storage/trained_models/latest"
     if os.path.exists(model_root):
@@ -280,12 +417,19 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
     column_types = detect_column_types(df, label_column) # 使用修复后的函数
     text_columns = [col for col, typ in column_types.items() if typ == 'text']
     first_text_col = text_columns[0] if text_columns else None
+    use_gpu = has_available_gpu()
+    gpu_cfg = build_gpu_train_config(use_gpu)
+    ludwig_train_profile = get_ludwig_dynamic_train_profile(use_gpu)
 
     # --- 新增调试日志 ---
     print(f"[DEBUG] Task {task_id} - Target column: '{label_column}'")
     print(f"[DEBUG] Task {task_id} - Detected column types: {column_types}")
     input_feature_names = [col for col, typ in column_types.items() if typ != 'skip']
     print(f"[DEBUG] Task {task_id} - Potential input features: {input_feature_names}")
+    print(f"[DEBUG] Task {task_id} - GPU available: {use_gpu}")
+    print(f"[DEBUG] Task {task_id} - Ray runtime profile: {RAY_RUNTIME_PROFILE}")
+    print(f"[DEBUG] Task {task_id} - Ludwig executor config: {gpu_cfg['ludwig_executor']}")
+    print(f"[DEBUG] Task {task_id} - Ludwig dynamic train profile: {ludwig_train_profile}")
     
     if label_column in input_feature_names:
         logger.error(f"[CRITICAL ERROR] Task {task_id}: Label column '{label_column}' is included in input features! This indicates a bug in detect_column_types.")
@@ -308,7 +452,7 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
             setup_kwargs = {
                 "data": pycaret_df, "target": label_column, "train_size": train_ratio,
                 "verbose": False, "session_id": 42,
-                "n_jobs": 1, "use_gpu": False, "fold": 3
+                "n_jobs": 1, "use_gpu": gpu_cfg["pycaret_use_gpu"], "fold": 3
             }
             setup(**setup_kwargs)
 
@@ -335,10 +479,11 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
                         write_task("running", f"PyCaret 模型完成: {model_name}", leaderboard)
                     except Exception as e:
                         logger.error(f"❌ {model_name} 训练异常: {str(e)}")
-                        # 添加失败记录
+                        # 失败模型不再伪造 0 分，避免与真实低分混淆
                         leaderboard.append({
-                            "model_name": model_name, "f1_score": 0.0,
-                            "accuracy": 0.0, "model_path": None
+                            "model_name": model_name, "f1_score": None,
+                            "accuracy": None, "model_path": None, "status": "failed",
+                            "error": str(e)
                         })
                         write_task("running", f"PyCaret 模型失败: {model_name}", leaderboard)
 
@@ -394,7 +539,7 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
                 
                 hyperopt_params = {
                     "trainer.learning_rate": {"space": "choice", "categories":[0.001, 0.0005]},
-                    "trainer.batch_size": {"space": "choice", "categories": [8, 16]}
+                    "trainer.batch_size": {"space": "choice", "categories": ludwig_train_profile["batch_candidates"]}
                 }
                 if first_text_col:
                     hyperopt_params[f"input_features.{first_text_col}.encoder.dropout"] = {"space": "uniform", "lower": 0.0, "upper": 0.3}
@@ -402,7 +547,9 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
                 config = {
                     "input_features": input_features,
                     "output_features":[{"name": label_column, "type": "category"}],
-                    "backend": {"type": "local"}, # 强行拦截 Ray Data 防止 OOM
+                    # 你的本地 Ludwig + Ray 组合在 DatasetIterator 路径上有兼容性问题，
+                    # 使用 local backend 可规避 "Experiment did not complete" / PicklingError 链式异常。
+                    "backend": {"type": "local"},
                     "preprocessing": {
                         "split": {
                             "type": "random",
@@ -410,18 +557,19 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
                         }
                     },
                     "trainer": {
-                        # 控制单模型训练时长，避免“看起来一直不结束”
-                        "epochs": 2,
-                        "early_stop": 2
-                    },
+                            "epochs": ludwig_train_profile["epochs"],
+                            "early_stop": ludwig_train_profile["early_stop"],
+                            "batch_size": ludwig_train_profile["default_batch_size"],  
+                        },
                     "hyperopt": {
                         # 当前 Ludwig 版本不支持 f1_score_macro 作为 hyperopt metric，改用兼容指标避免 schema 校验失败
                         "goal": "maximize", "metric": "accuracy_micro", "output_feature": label_column,
                         "search_alg": {"type": "hyperopt"},
-                        "executor": {"type": "ray", "num_samples": 1, "max_concurrent_trials": 1},
+                    "executor": gpu_cfg["ludwig_executor"],
                         "parameters": hyperopt_params
                     }
                 }
+                print(f"[DEBUG] Task {task_id} - Ludwig backend: {config['backend']}, executor: {config['hyperopt']['executor']}")
                 out_dir = f"./storage/trained_models/latest/{name}"
                 if os.path.exists(out_dir):
                     shutil.rmtree(out_dir, ignore_errors=True)
@@ -485,9 +633,12 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
                         or overall_stats.get('avg_f1_score_weighted')
                         or overall_stats.get('f1_score')
                         or overall_stats.get('avg_f1_score_micro')
-                        or 0.0
                     )
-                    best_acc = overall_stats.get('accuracy') or overall_stats.get('accuracy_micro') or 0.0
+                    best_acc = overall_stats.get('accuracy') or overall_stats.get('accuracy_micro')
+                    if best_f1 is None:
+                        raise ValueError(f"{name} 缺少可用的 F1 指标，eval_stats={overall_stats}")
+                    if best_acc is None:
+                        best_acc = 0.0
 
                     leaderboard.append({
                         "model_name": name, "f1_score": round(float(best_f1), 4),
@@ -497,17 +648,22 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
                     write_task("running", f"Ludwig 模型完成: {name}", leaderboard)
                 except Exception as e:
                     logger.error(f"❌ {name} 异常: {str(e)}")
-                    # 添加失败记录
+                    # 失败模型不再写入 0 分，明确标注失败原因
                     leaderboard.append({
-                        "model_name": name, "f1_score": 0.0,
-                        "accuracy": 0.0, "model_path": None
+                        "model_name": name, "f1_score": None,
+                        "accuracy": None, "model_path": None, "status": "failed",
+                        "error": str(e)
                     })
                     write_task("running", f"Ludwig 模型失败: {name}，原因: {str(e)}", leaderboard)
                 finally:
                     if os.path.exists(temp_dataset_path): os.remove(temp_dataset_path)
 
         # 训练结束后，对排行榜进行排序
-        leaderboard[:] = sorted(leaderboard, key=lambda x: x['f1_score'], reverse=True) # 使用 slice [:] 来就地修改
+        leaderboard[:] = sorted(
+            leaderboard,
+            key=lambda x: (x.get('f1_score') is not None, x.get('f1_score') or -1),
+            reverse=True
+        ) # 使用 slice [:] 来就地修改
         write_task("completed", "训练完成", leaderboard)
 
     except Exception as e:
