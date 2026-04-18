@@ -1,0 +1,40 @@
+version: 1.0
+name: imbalaced_insurance
+kaggle_dataset_id: arashnic/imbalanced-data-practice
+archive_filenames: imbalanced-data-practice.zip
+sha256:
+  imbalanced-data-practice.zip: 33c7d15cbdb7cc151c1d5e920a8a613b015c19222f90d4eac04ca8cfc5416847
+dataset_filenames: aug_train.csv
+loader: split_loaders.RandomSplitLoader
+description: |
+  Health Insurance Cross Sell Prediction
+  Predict Health Insurance Owners' who will be interested in Vehicle Insurance
+  https://www.kaggle.com/datasets/arashnic/imbalanced-data-practice
+columns:
+  - name: id
+    type: category
+  - name: Gender
+    type: binary
+  - name: Age
+    type: number
+  - name: Driving_License
+    type: binary
+  - name: Region_Code
+    type: category
+  - name: Previously_Insured
+    type: binary
+  - name: Vehicle_Age
+    type: category
+  - name: Vehicle_Damage
+    type: binary
+  - name: Annual_Premium
+    type: number
+  - name: Policy_Sales_Channel
+    type:
+  - name: Vintage
+    type:
+  - name: Response
+    type:
+output_features:
+  - name: Response
+    type: binary

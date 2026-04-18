@@ -1,0 +1,46 @@
+combiner:
+  type: tabnet
+
+trainer:
+  batch_size: auto
+  learning_rate_scaling: sqrt
+  learning_rate_scheduler:
+    decay: exponential
+    decay_steps: 20000
+    decay_rate: 0.8
+  optimizer:
+    type: adam
+
+hyperopt:
+  parameters:
+    trainer.learning_rate:
+      space: loguniform
+      lower: 0.00002
+      upper: 0.001
+    trainer.learning_rate_scheduler.decay_rate:
+      space: choice
+      categories: [0.8, 0.9, 0.95]
+    trainer.learning_rate_scheduler.decay_steps:
+      space: choice
+      categories: [500, 2000, 8000, 10000, 20000]
+    combiner.size:
+      space: choice
+      categories: [8, 16, 24, 32, 64]
+    combiner.output_size:
+      space: choice
+      categories: [8, 16, 24, 32, 64, 128]
+    combiner.num_steps:
+      space: choice
+      categories: [3, 4, 5, 6, 7, 8, 9, 10]
+    combiner.relaxation_factor:
+      space: choice
+      categories: [1.0, 1.2, 1.5, 2.0]
+    combiner.sparsity:
+      space: choice
+      categories: [0.0, 0.000001, 0.0001, 0.001, 0.01, 0.1]
+    combiner.bn_virtual_bs:
+      space: choice
+      categories: [256, 512, 1024, 2048, 4096]
+    combiner.bn_momentum:
+      space: choice
+      categories: [0.4, 0.3, 0.2, 0.1, 0.05, 0.02]

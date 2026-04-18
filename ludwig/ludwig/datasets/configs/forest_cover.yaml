@@ -1,0 +1,41 @@
+version: 1.0
+name: forest_cover
+download_urls: https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz
+sha256:
+  covtype.data.gz: 614360d0257557dd1792834a85a1cdebfadc3c4f30b011d56afee7ffb5b15771
+dataset_filenames: covtype.data
+loader: forest_cover.ForestCoverLoader
+description: |
+  The Forest Cover Type dataset.
+  Predicting forest cover type from cartographic variables only.
+  https://archive.ics.uci.edu/ml/datasets/covertype
+columns:
+  - name: Elevation
+    type: number
+  - name: Aspect
+    type: number
+  - name: Slope
+    type: number
+  - name: Horizontal_Distance_To_Hydrology
+    type: number
+  - name: Vertical_Distance_To_Hydrology
+    type: number
+  - name: Horizontal_Distance_To_Roadways
+    type: number
+  - name: Hillshade_9am
+    type: number
+  - name: Hillshade_Noon
+    type: number
+  - name: Hillshade_3pm
+    type: number
+  - name: Horizontal_Distance_To_Fire_Points
+    type: number
+  - name: Wilderness_Area
+    type: category
+  - name: Soil_Type
+    type: category
+  - name: Cover_Type
+    type: category
+output_features:
+  - name: Cover_Type
+    type: category

@@ -1,0 +1,100 @@
+version: 1.0
+name: california_house_price
+download_urls:
+  - https://automl-mm-bench.s3.amazonaws.com/kaggle-california-house-prices/train.csv
+  - https://automl-mm-bench.s3.amazonaws.com/kaggle-california-house-prices/test.csv
+sha256:
+  test.csv: b5bb9ed6e56cbdd0a410e186a19c6fe137c2ffbb50ba6b0808540434a8123dc6
+  train.csv: 907d45804e622fb136a9d55bde97269f421fb9b8f7c9f34416672cf7078ee94b
+train_filenames: train.csv
+test_filenames: test.csv
+description: |
+  Predict house sale prices based on the house information, such as # of bedrooms,
+  living areas, locations, near-by schools, and the seller summary. The data consist
+  of houses sold in California in 2020, with houses in the test dataset sold after
+  the ones in the training dataset.
+  https://www.kaggle.com/c/california-house-prices
+columns:
+  - name: Address
+    type: category
+  - name: Sold Price
+    type: number
+  - name: Summary
+    type: text
+  - name: Type
+    type: category
+  - name: Year built
+    type: number
+  - name: Heating
+    type: category
+  - name: Cooling
+    type: category
+  - name: Parking
+    type: category
+  - name: Lot
+    type: number
+  - name: Bedrooms
+    type: number
+  - name: Bathrooms
+    type: number
+  - name: Full bathrooms
+    type: number
+  - name: Total interior livable area
+    type: number
+  - name: Total spaces
+    type: number
+  - name: Garage spaces
+    type: number
+  - name: Region
+    type: category
+  - name: Elementary School
+    type: category
+  - name: Elementary School Score
+    type: number
+  - name: Elementary School Distance
+    type: number
+  - name: Middle School
+    type: category
+  - name: Middle School Score
+    type: number
+  - name: Middle School Distance
+    type: number
+  - name: High School
+    type: category
+  - name: High School Score
+    type: number
+  - name: High School Distance
+    type: number
+  - name: Flooring
+    type: set
+  - name: Heating features
+    type: set
+  - name: Cooling features
+    type: set
+  - name: Appliances included
+    type: set
+  - name: Laundry features
+    type: set
+  - name: Parking features
+    type: set
+  - name: Tax assessed value
+    type: number
+  - name: Annual tax amount
+    type: number
+  - name: Listed On
+    type: date
+  - name: Listed Price
+    type: number
+  - name: Last Sold On
+    type: date
+  - name: Last Sold Price
+    type: number
+  - name: City
+    type: category
+  - name: Zip
+    type: category
+  - name: State
+    type: category
+output_features:
+  - name: Sold Price
+    type: number

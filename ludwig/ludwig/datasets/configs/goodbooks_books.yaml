@@ -1,0 +1,75 @@
+version: 1.0
+name: goodbooks_books
+download_urls:
+  - https://github.com/zygmuntz/goodbooks-10k/releases/download/v1.0/goodbooks-10k.zip
+sha256:
+  goodbooks-10k.zip: 261b97b56db61f3fb2ce5aadbb13704d30179fcc986c17ace665a0af9ed00731
+dataset_filenames: books.csv
+description: |
+  goodbooks_books is a multimodal dataset of 10K books, taken from the goodreads dataset.
+  The Goodbooks-10K dataset contains six million ratings for ten thousand most popular (with most ratings) books.
+  The dataset also contains:
+    books marked to read by the users
+    book metadata (author, year, etc.)
+    tags/shelves/genres
+  https://github.com/zygmuntz/goodbooks-10k
+columns:
+  - name: book_id
+    type: category
+  - name: goodreads_book_id
+    type: category
+  - name: best_book_id
+    type: category
+  - name: work_id
+    type: category
+  - name: books_count
+    type: number
+  - name: isbn
+    type: category
+  - name: isbn13
+    type: category
+  - name: authors
+    type: category
+  - name: original_publication_year
+    type: category
+  - name: original_title
+    type: category
+  - name: title
+    type: category
+  - name: language_code
+    type: category
+  - name: average_rating
+    type: number
+  - name: ratings_count
+    type: number
+  - name: work_ratings_count
+    type: number
+  - name: work_text_reviews_count
+    type: number
+  - name: ratings_1
+    type: number
+  - name: ratings_2
+    type: number
+  - name: ratings_3
+    type: number
+  - name: ratings_4
+    type: number
+  - name: ratings_5
+    type: number
+  - name: image_url
+    type: image
+  - name: small_image_url
+    type: image
+output_features:
+  - name: average_rating
+    type: number
+  - name: ratings_1
+    type: number
+  - name: ratings_2
+    type: number
+  - name: ratings_3
+    type: number
+  - name: ratings_4
+    type: number
+  - name: ratings_5
+    type: number
