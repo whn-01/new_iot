@@ -161,7 +161,7 @@
     </el-table-column>
     <el-table-column prop="status" label="状态" align="center">
        <template #default="scope">
-         <span :style="{ color: scope.row.status === 'Ready' ? 'green' : (scope.row.status === 'Failed' ? 'red' : 'orange') }">
+         <span :style="{ color: scope.row.status === 'Ready' ? 'green' : (scope.row.status === 'Failed' ? 'red' : (scope.row.status === 'Deployed' ? 'blue' : 'orange')) }">
            {{ scope.row.status || 'Pending' }}
          </span>
        </template>
@@ -185,6 +185,24 @@
       <!-- ================= 模块 2：模型集市与自定义 ================= -->
       <el-tab-pane label="高级模型集市" name="market">
         <el-card shadow="never" class="box-card">
+          <h3>所有已训练模型</h3>
+          <el-table :data="allTrainedModels" border style="width: 100%;">
+            <el-table-column prop="model_name" label="模型名称" />
+            <el-table-column label="操作" align="center" width="200">
+              <template #default="scope">
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="deployModelFromMarket(scope.row)"
+                >
+                  部署此模型
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <el-card shadow="never" class="box-card" style="margin-top: 20px;">
           <h3>付费解锁专区 (企业级模型)</h3>
           <el-row :gutter="20">
             <el-col :span="12" v-for="(item, index) in premiumModels" :key="index">
@@ -221,7 +239,77 @@
           <p v-if="customUploadStatus" class="sub-text" style="margin-top: 10px;">{{ customUploadStatus }}</p>
         </el-card>
       </el-tab-pane>
+<!-- ================= 模块 3：部署后在线推理测试 ================= -->
+      <el-tab-pane label="在线推理测试" name="predict">
+        <el-card shadow="never" class="box-card">
+          <h3>第一步：加载无标签待预测数据</h3>
+          <p class="sub-text">请从 /home/yhz/iot_yuceshuju 目录中选择未分类的数据文件，或直接上传。</p>
 
+          <div style="margin-top: 15px; margin-bottom: 15px;">
+            <label>预测文件夹 (路径加载):</label>
+            <el-select v-model="predictSelectedFolder" placeholder="请选择" @change="onPredictFolderChange" clearable style="width: 200px; margin-left: 10px; margin-right: 20px;">
+              <el-option v-for="f in predictFolders" :key="f" :label="f" :value="f" />
+            </el-select>
+
+            <label>待预测文件:</label>
+            <el-select v-model="predictSelectedFile" placeholder="请选择文件" clearable style="width: 250px; margin-left: 10px; margin-right: 20px;">
+              <el-option v-for="f in predictFiles" :key="f" :label="f" :value="f" />
+            </el-select>
+
+            <label>或直接上传文件 (批量预测):</label>
+            <el-upload
+              class="upload-demo"
+              drag
+              :action="uploadUrl"
+              :on-success="onUploadSuccess"
+              :on-error="onUploadError"
+              :show-file-list="false"
+              :headers="{ 'Content-Type': 'multipart/form-data' }"
+              accept=".csv,.tsv,.xlsx,.xls"
+            >
+              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+              <div class="el-upload__text">
+                将文件拖到此处，或 <em>点击上传</em>
+              </div>
+            </el-upload>
+          </div>
+
+          <el-button 
+            type="primary" 
+            size="large" 
+            @click="submitBatchPrediction" 
+            :loading="isPredicting" 
+            :disabled="(!predictSelectedFolder || !predictSelectedFile) && !uploadedFileToPredict"
+          >
+            🚀 提交至已部署 AI 引擎进行诊断
+          </el-button>
+        </el-card>
+
+        <!-- 预测结果表格 -->
+        <el-card shadow="never" class="box-card" v-if="batchPredictResults.length > 0" style="margin-top: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">诊断结果报告 (使用的模型: {{ usedModelName }})</h3>
+          </div>
+          
+          <el-table :data="batchPredictResults" border height="500" stripe style="width: 100%">
+            <!-- 动态渲染数据列，把“模型预测结果”固定在最前面用红色醒目标记 -->
+            <el-table-column prop="模型预测结果" label="🎯 模型判定类别" fixed="left" width="180" align="center">
+              <template #default="scope">
+                <el-tag type="danger" effect="dark" size="large">{{ scope.row['模型预测结果'] }}</el-tag>
+              </template>
+            </el-table-column>
+            
+            <el-table-column 
+              v-for="(val, key) in batchPredictResults[0]" 
+              :key="key" 
+              :prop="key" 
+              :label="key" 
+              v-if="key !== '模型预测结果'"
+              show-overflow-tooltip
+            />
+          </el-table>
+        </el-card>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -230,7 +318,8 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue' // 移除了 computed
 import axios from 'axios'
 import { ElMessage, ElNotification } from 'element-plus'
-import { Loading } from '@element-plus/icons-vue'
+import { Loading, UploadFilled } from '@element-plus/icons-vue'
+
 const activeTab = ref('train')
 
 // 新增：模型选择相关变量
@@ -282,6 +371,157 @@ let pollingTimer = null
 const premiumModels = ref([])
 const customModelName = ref('')
 const customUploadStatus = ref('')
+
+// 新增：存储所有已训练模型列表
+const allTrainedModels = ref([])
+
+// 新增：在线推理相关状态
+const predictFolders = ref([])
+const predictSelectedFolder = ref('')
+const predictFiles = ref([])
+const predictSelectedFile = ref('')
+const isPredicting = ref(false)
+const batchPredictResults = ref([])
+const usedModelName = ref('')
+const uploadedFileToPredict = ref(null); // 存储上传的文件对象
+const uploadUrl = ref('http://localhost:8000/api/predict/batch_upload'); // 新增上传接口URL
+
+
+// 新增：加载所有已训练模型列表
+const loadAllTrainedModels = async () => {
+  try {
+    const response = await axios.get('http://localhost:8000/api/models/list');
+    if (response.data.code === 200) {
+      // 将列表转换为对象数组，方便前端表格使用
+      allTrainedModels.value = response.data.data.map(name => ({ model_name: name }));
+      console.log('所有已训练模型列表已加载:', response.data.data);
+    } else {
+      throw new Error(response.data.msg || '获取模型列表失败');
+    }
+  } catch (error) {
+    console.error('加载模型列表失败:', error);
+    // ElMessage.error('加载模型列表失败，请检查后端连接。');
+    // 如果接口不存在或失败，清空列表
+    allTrainedModels.value = [];
+  }
+};
+
+
+// 新增：从模型集市部署模型
+// 新增：从模型集市部署模型 (修复ElMessage.loading调用问题)
+const deployModelFromMarket = async (modelRow) => {
+  // 使用 ElMessage 创建一个持续存在的加载消息
+  const loadingMsg = ElMessage({
+    message: `正在将 ${modelRow.model_name} 加载到服务器内存中准备推理...`,
+    type: 'info',
+    duration: 0,
+    showClose: false
+  });
+
+  try {
+    const formData = new FormData();
+    // 注意：这里从前端模型集市列表中获取模型名，可能需要发送完整路径
+    // 假设模型集市中的 model_name 就是模型的最终文件夹名，后端可以根据此名查找完整路径
+    // 或者，后端可以设计一个新接口，通过 model_name 查找路径
+    // 这里暂时沿用原有逻辑，假设 model_name 就是唯一标识
+    formData.append('model_name', modelRow.model_name);
+
+    const res = await axios.post('http://localhost:8000/api/deploy', formData);
+
+    if (res.data.code === 200) {
+      // 关闭加载消息
+      loadingMsg.close();
+      ElNotification({
+        title: '部署成功',
+        message: `${modelRow.model_name} 已接管全局推理引擎！切换到【在线推理测试】页面即可使用。`,
+        type: 'success',
+        position: 'bottom-right',
+        duration: 5000
+      });
+      // 更新排行榜状态
+      // 由于是从集市部署，可能需要刷新整个排行榜或手动更新状态
+      // 简化处理：更新当前部署模型的状态
+      updateLeaderboardDeploymentStatus(modelRow.model_name);
+    } else {
+      throw new Error(res.data.msg);
+    }
+  } catch (error) {
+    // 即使出错也要关闭加载消息
+    loadingMsg.close();
+    ElMessage.error('部署失败：' + (error.response?.data?.msg || error.message));
+  }
+};
+// 辅助函数：更新排行榜中部署模型的状态
+const updateLeaderboardDeploymentStatus = (deployedModelName) => {
+  leaderboard.value.forEach(m => {
+    if (m.status === 'Deployed') m.status = 'Ready';
+    if (m.model_name === deployedModelName) m.status = 'Deployed';
+  });
+};
+
+
+
+// 新增：上传文件成功回调
+const onUploadSuccess = (response, file) => {
+  console.log('文件上传成功:', file.name, response);
+  // 假设后端返回一个临时文件标识或其他信息
+  // 这里我们只是记录文件名，实际调用批量预测时需要处理
+  uploadedFileToPredict.value = file.raw; // 存储原始文件对象
+  ElMessage.success(`${file.name} 上传成功，可以点击提交进行诊断。`);
+};
+
+// 新增：上传文件失败回调
+const onUploadError = (error) => {
+  console.error('文件上传失败:', error);
+  ElMessage.error('文件上传失败，请检查文件格式或后端连接。');
+};
+
+// 修改：提交批量预测，增加对上传文件的支持
+const submitBatchPrediction = async () => {
+  let apiEndpoint = '';
+  let formData = new FormData();
+
+  if (predictSelectedFolder.value && predictSelectedFile.value) {
+    // 使用路径加载
+    apiEndpoint = 'http://localhost:8000/api/predict/batch_file';
+    formData.append('folder_name', predictSelectedFolder.value);
+    formData.append('file_name', predictSelectedFile.value);
+  } else if (uploadedFileToPredict.value) {
+    // 使用上传文件
+    apiEndpoint = 'http://localhost:8000/api/predict/batch_upload';
+    formData.append('file', uploadedFileToPredict.value);
+  } else {
+    ElMessage.warning('请完整选择待预测的文件夹和文件，或先上传一个文件！');
+    return;
+  }
+
+  isPredicting.value = true;
+  batchPredictResults.value = []; // 预测前清空旧数据
+  usedModelName.value = '';
+
+  try {
+    const res = await axios.post(apiEndpoint, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+
+    if (res.data.code === 200) {
+      // 将后端返回的 DataFrame 字典数组赋给表格渲染
+      batchPredictResults.value = res.data.data;
+      usedModelName.value = res.data.model_used || '当前已部署模型';
+      ElMessage.success(res.data.msg);
+    } else {
+      throw new Error(res.data.msg || '预测失败');
+    }
+  } catch (error) {
+    console.error('预测报错:', error);
+    // 提取后端抛出的具体报错信息
+    const errorMsg = error.response?.data?.msg || error.response?.data?.detail || error.message;
+    ElMessage.error('诊断请求失败：' + errorMsg);
+  } finally {
+    isPredicting.value = false;
+  }
+};
+
 
 // 新增：加载数据集文件夹列表
 const loadFolders = async () => {
@@ -578,38 +818,53 @@ const startPolling = () => {
     }
   }, 2000) // 轮询间隔 2 秒
 }
-// 4. 部署模型
+// 4. 部署模型 (修复表单传参 Bug)
+// 4. 部署模型 (修复ElMessage.loading调用问题)
 const deployModel = async (row) => {
-  const loadingMsg = ElMessage.loading({
-    message: `正在将 ${row.model_name} 部署至边缘网关...`,
-    duration: 0
-  })
+  // 使用 ElMessage 创建一个持续存在的加载消息
+  const loadingMsg = ElMessage({
+    message: `正在将 ${row.model_name} 加载到服务器内存中准备推理...`,
+    type: 'info', // 使用 'info' 类型，因为它通常用于提示信息
+    duration: 0,   // 设置为 0 表示不自动关闭
+    showClose: false // 可选，隐藏关闭按钮
+  });
 
   try {
-    const res = await axios.post('http://localhost:8000/api/deploy', {
-      model_name: row.model_name,
-      model_id: row.id
-    })
+    // ⚠️ 关键修复：必须组装成 FormData 格式，才能和后端 FastAPI 的 Form(...) 匹配！
+    const formData = new FormData()
+    formData.append('model_name', row.model_name)
+    if (row.id) {
+      formData.append('model_id', row.id)
+    }
+
+    const res = await axios.post('http://localhost:8000/api/deploy', formData)
 
     if (res.data.code === 200) {
+      // 关闭加载消息
       loadingMsg.close()
       ElNotification({
         title: '部署成功',
-        message: `${row.model_name} 已成功下发至 IoT 设备，版本号为 v${new Date().getTime()}`,
+        message: `${row.model_name} 已接管全局推理引擎！切换到【在线推理测试】页面即可使用。`,
         type: 'success',
-        position: 'bottom-right'
+        position: 'bottom-right',
+        duration: 5000
       })
 
+      // 把所有其他模型状态重置为 Ready，把当前部署的模型状态改为 Deployed
+      leaderboard.value.forEach(m => {
+        if (m.status === 'Deployed') m.status = 'Ready'
+      })
       row.status = 'Deployed'
+      
     } else {
       throw new Error(res.data.msg)
     }
   } catch (error) {
+    // 即使出错也要关闭加载消息
     loadingMsg.close()
-    ElMessage.error('部署失败：' + error.message)
+    ElMessage.error('部署失败：' + (error.response?.data?.detail || error.message))
   }
 }
-
 // 5. 自定义模型上传成功
 const handleCustomUploadSuccess = (res) => {
   if (res.code === 200) {
@@ -625,6 +880,8 @@ const handleCustomUploadSuccess = (res) => {
 // 6. 生命周期：初始化时加载数据集文件夹列表
 onMounted(() => {
   loadFolders();
+  loadPredictFolders();
+  loadAllTrainedModels(); // 新增：加载所有模型列表
 
   premiumModels.value = [
     { name: 'DeepForest Pro', desc: '适用于复杂森林火灾预测的深度集成模型，精度提升 15%。', price: '¥ 2,999/年' },
@@ -649,80 +906,74 @@ onBeforeUnmount(() => {
     gpuStatusIntervalId = null;
   }
 })
+// ==========================================
+// ====== 新增：在线推理相关状态变量与方法 ======
+// ==========================================
+
+// 1. 获取预测目录列表
+const loadPredictFolders = async () => {
+  try {
+    const res = await axios.get('http://localhost:8000/api/predict_datasets/folders')
+    if (res.data.code === 200) {
+      predictFolders.value = res.data.folders
+    }
+  } catch (error) {
+    console.error('加载预测文件夹失败', error)
+  }
+}
+
+// 2. 当预测文件夹改变时，获取其下的无标签文件列表
+const onPredictFolderChange = async (folder) => {
+  predictSelectedFile.value = ''
+  if (!folder) {
+    predictFiles.value =[]
+    return
+  }
+  try {
+    const res = await axios.get(`http://localhost:8000/api/predict_datasets/files/${encodeURIComponent(folder)}`)
+    if (res.data.code === 200) {
+      predictFiles.value = res.data.files
+    }
+  } catch (error) {
+    console.error('加载预测文件失败', error)
+  }
+}
+
+// 3. 提交批量预测（补全之前的截断部分）
+// 此函数已在上方修改
+
 </script>
-<!-- (保持原有的样式部分不变) -->
+
 <style scoped>
 .ai-platform {
   padding: 20px;
-  background-color: #f5f7fa;
-  min-height: 100vh;
 }
-
 .box-card {
   margin-bottom: 20px;
 }
-
-.box-card h3 {
-  margin-top: 0;
-  color: #303133;
-  border-bottom: 1px solid #EBEEF5;
-  padding-bottom: 10px;
-}
-
 .slider-block {
   margin-bottom: 20px;
 }
-
 .label {
   display: block;
-  margin-bottom: 10px;
-  font-weight: bold;
-  color: #606266;
+  margin-bottom: 5px;
 }
-
 .sub-text {
-  color: #909399;
-  font-size: 13px;
-  margin-top: 5px;
+  color: #999;
+  font-size: 12px;
+  margin-top: 2px;
 }
-
-.success-text {
-  color: #67C23A;
-  margin-left: 10px;
-}
-
-.el-table {
-  margin-top: 10px;
-}
-
 .premium-card {
-  height: 150px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  text-align: center;
 }
-
-.premium-card h4 {
-  margin: 0;
-  color: #E6A23C;
-}
-
-.premium-card p {
-  font-size: 13px;
-  color: #909399;
-  line-height: 1.5;
-  margin: 5px 0;
-}
-
 .price-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-top: 10px;
 }
-
 .price {
   font-weight: bold;
-  color: #E74C3C;
+  color: #e6a23c;
 }
 </style>

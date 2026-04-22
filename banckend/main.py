@@ -26,7 +26,7 @@ import warnings
 from functools import partial
 from ray.tune.utils.util import wait_for_gpu as ray_wait_for_gpu
 import ludwig.hyperopt.execution as ludwig_hyperopt_execution
-
+import joblib  # 用于加载PyCaret模型
 # 将 Python 默认的 1000 层递归限制调高到 100000 层，防止 Ray 打包时堆栈溢出崩溃！
 sys.setrecursionlimit(100000)
 
@@ -224,7 +224,8 @@ for d in ["datasets", "tasks", "custom_models", "trained_models/latest"]:
 # 全局变量
 DEPLOYED_MODEL = None
 DATASET_ROOT_PATH = "/home/yhz/iot_shujuji"
-
+PREDICT_DATASET_ROOT_PATH = "/home/yhz/iot_yuceshuju"
+os.makedirs(PREDICT_DATASET_ROOT_PATH, exist_ok=True)
 LUDWIG_ALGORITHMS = {
     "TextCNN": {"type": "parallel_cnn"},
     "Bi-LSTM": {"type": "rnn", "cell_type": "lstm", "bidirectional": True},
@@ -669,6 +670,32 @@ def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, labe
     except Exception as e:
         logger.error(traceback.format_exc())
         write_task("failed", str(e), [])
+
+# ==========================================
+# 新增：获取所有已训练模型列表
+# ==========================================
+@app.get("/api/models/list")
+async def list_trained_models():
+    """获取 ./storage/trained_models/latest 目录下的所有模型文件夹和PyCaret模型文件"""
+    model_dir = "./storage/trained_models/latest"
+    if not os.path.exists(model_dir):
+        return {"code": 200, "data": []}
+    
+    # 获取所有文件夹（Ludwig模型）
+    model_folders = [d for d in os.listdir(model_dir) if os.path.isdir(os.path.join(model_dir, d))]
+    
+    # 获取所有PyCaret模型文件（.pkl文件）
+    pkl_files = []
+    for f in os.listdir(model_dir):
+        if f.endswith('.pkl') and f in ['rf.pkl', 'nb.pkl']:
+            # 提取模型名称（去掉.pkl后缀）
+            model_name = f.replace('.pkl', '_AutoFeat')
+            pkl_files.append(model_name)
+    
+    # 合并两个列表
+    all_models = model_folders + pkl_files
+    return {"code": 200, "data": all_models}
+
 # ==========================================
 # 原有逻辑保留：API 路由
 # ==========================================
@@ -766,16 +793,38 @@ async def deploy_model_from_table(model_name: str = Form(...), model_id: str = F
     
     try:
         global DEPLOYED_MODEL
-        if "pycaret" in model_path:
-            from pycaret.classification import load_model
-            loaded_model = load_model(model_path.replace('.pkl', ''))
-            DEPLOYED_MODEL = (loaded_model, 'pycaret', model_path)
+        if model_name.endswith('_AutoFeat') and any(x in model_name.lower() for x in ['rf', 'nb']):
+            # PyCaret模型处理
+            # 构建正确的pkl文件路径
+            if 'rf' in model_name.lower():
+                actual_model_path = os.path.join("./storage/trained_models/latest", "rf.pkl")
+            elif 'nb' in model_name.lower():
+                actual_model_path = os.path.join("./storage/trained_models/latest", "nb.pkl")
+            else:
+                actual_model_path = model_path
+            
+            if os.path.exists(actual_model_path):
+                from pycaret.classification import load_model
+                loaded_model = load_model(actual_model_path.replace('.pkl', ''))
+                DEPLOYED_MODEL = (loaded_model, 'pycaret', actual_model_path)
+            else:
+                return {"code": 500, "msg": f"PyCaret模型文件不存在: {actual_model_path}"}
         else:
-            loaded_model = LudwigModel.load(model_path, backend='local')
+            # Ludwig模型处理
+            # Ludwig模型路径通常是包含 'model' 子目录的文件夹
+            ludwig_model_dir = os.path.join(model_path, "model")
+            if os.path.exists(ludwig_model_dir):
+                 loaded_model = LudwigModel.load(ludwig_model_dir, backend='local')
+            else:
+                 # 如果 model 子目录不存在，直接尝试加载 model_path
+                 loaded_model = LudwigModel.load(model_path, backend='local')
             DEPLOYED_MODEL = (loaded_model, 'ludwig', model_path)
+            
         return {"code": 200, "msg": f"{model_name} 部署成功！"}
     except Exception as e:
+        logger.error(traceback.format_exc())
         return {"code": 500, "msg": f"加载失败: {str(e)}"}
+
 # ==========================================
 # 【核心修改】多属性在线推理预测接口
 # ==========================================
@@ -802,6 +851,158 @@ async def predict(payload: Dict[str, Any] = Body(...)):
     except Exception as e:
         logger.error(traceback.format_exc())
         return {"error": f"Prediction failed: {e}"}
+
+# ==========================================
+# 【新增模块】获取无标签预测数据集目录和文件
+# ==========================================
+@app.get("/api/predict_datasets/folders")
+async def list_predict_dataset_folders():
+    """获取 /home/yhz/iot_yuceshuju 目录下的所有子文件夹"""
+    if not os.path.exists(PREDICT_DATASET_ROOT_PATH):
+        return {"code": 200, "folders":[]}
+    items = os.listdir(PREDICT_DATASET_ROOT_PATH)
+    folders =[item for item in items if os.path.isdir(os.path.join(PREDICT_DATASET_ROOT_PATH, item))]
+    return {"code": 200, "folders": folders}
+
+@app.get("/api/predict_datasets/files/{folder_name}")
+async def list_predict_dataset_files(folder_name: str):
+    """获取预测子目录下的无标签文件列表"""
+    folder_path = os.path.join(PREDICT_DATASET_ROOT_PATH, folder_name)
+    if not os.path.exists(folder_path):
+        return {"code": 404, "msg": f"预测子目录不存在: {folder_name}", "files":[]}
+    
+    allowed_extensions = {".csv", ".tsv", ".xlsx", ".xls"}
+    all_items = os.listdir(folder_path)
+    files =[f for f in all_items if os.path.isfile(os.path.join(folder_path, f)) and os.path.splitext(f)[1].lower() in allowed_extensions]
+    return {"code": 200, "files": files}
+
+# ==========================================
+# 【新增模块】针对无标签文件的批量推理接口 (通过指定路径)
+# ==========================================
+@app.post("/api/predict/batch_file")
+async def predict_batch_from_file(
+    folder_name: str = Form(...),
+    file_name: str = Form(...)
+):
+    if DEPLOYED_MODEL is None:
+        return {"code": 400, "msg": "没有任何模型被部署运行！请先在排行榜点击一键部署。"}
+    
+    loaded_model, model_type, model_path = DEPLOYED_MODEL
+    
+    file_path = os.path.join(PREDICT_DATASET_ROOT_PATH, folder_name, file_name)
+    if not os.path.exists(file_path):
+        return {"code": 404, "msg": f"待预测文件不存在: {file_path}"}
+        
+    try:
+        # 1. 动态读取无标签文件
+        file_ext = file_path.split('.')[-1].lower()
+        if file_ext in ['xls', 'xlsx']:
+            df_new = pd.read_excel(file_path)
+        elif file_ext == 'tsv':
+            df_new = pd.read_csv(file_path, sep='\t')
+        else:
+            df_new = pd.read_csv(file_path)
+            
+        df_new = df_new.dropna(how='all') # 清洗全空行
+        if df_new.empty:
+            return {"code": 400, "msg": "文件内容为空。"}
+            
+        # 2. 走部署模型的推理逻辑
+        if model_type == 'pycaret':
+            from pycaret.classification import predict_model
+            prediction_df = predict_model(loaded_model, data=df_new)
+            df_new['模型预测结果'] = prediction_df['prediction_label']
+        else:
+            pred_df, _ = loaded_model.predict(df_new)
+            pred_col = [c for c in pred_df.columns if c.endswith('_predictions')][0]
+            df_new['模型预测结果'] = pred_df[pred_col]
+            
+        # 3. 将 DataFrame 转回字典数组返回给前端渲染 (处理 NaN)
+        df_new = df_new.replace({np.nan: None}) 
+        records = df_new.to_dict(orient='records')
+        
+        return {
+            "code": 200, 
+            "msg": f"批量预测完成，共诊断 {len(records)} 条数据！",
+            "data": records,
+            "model_used": model_path.split('/')[-1] if model_type=='pycaret' else model_path.split('/')[-2]
+        }
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {"code": 500, "msg": f"批量预测失败，请检查该无标签文件的列特征是否与训练时一致！错误: {str(e)}"}
+
+# ==========================================
+# 【新增模块】通过上传文件进行批量推理接口
+# ==========================================
+@app.post("/api/predict/batch_upload")
+async def predict_batch_from_uploaded_file(
+    file: UploadFile = File(...)
+):
+    if DEPLOYED_MODEL is None:
+        return {"code": 400, "msg": "没有任何模型被部署运行！请先在排行榜点击一键部署。"}
+    
+    loaded_model, model_type, model_path = DEPLOYED_MODEL
+
+    # 1. 保存上传的临时文件
+    temp_file_path = os.path.join(PREDICT_DATASET_ROOT_PATH, f"temp_{file.filename}")
+    try:
+        contents = await file.read()
+        with open(temp_file_path, 'wb') as f:
+            f.write(contents)
+        logger.info(f"Uploaded temporary file: {temp_file_path}")
+    except Exception as e:
+        logger.error(f"Failed to save uploaded file: {str(e)}")
+        return {"code": 500, "msg": f"Failed to save uploaded file: {str(e)}"}
+
+    try:
+        # 2. 动态读取无标签文件
+        file_ext = file.filename.split('.')[-1].lower()
+        if file_ext in ['xls', 'xlsx']:
+            df_new = pd.read_excel(temp_file_path)
+        elif file_ext == 'tsv':
+            df_new = pd.read_csv(temp_file_path, sep='\t')
+        else:
+            df_new = pd.read_csv(temp_file_path)
+            
+        df_new = df_new.dropna(how='all') # 清洗全空行
+        if df_new.empty:
+            os.remove(temp_file_path) # 清理临时文件
+            return {"code": 400, "msg": "上传的文件内容为空。"}
+            
+        # 3. 走部署模型的推理逻辑
+        if model_type == 'pycaret':
+            from pycaret.classification import predict_model
+            prediction_df = predict_model(loaded_model, data=df_new)
+            df_new['模型预测结果'] = prediction_df['prediction_label']
+        else:
+            pred_df, _ = loaded_model.predict(df_new)
+            pred_col = [c for c in pred_df.columns if c.endswith('_predictions')][0]
+            df_new['模型预测结果'] = pred_df[pred_col]
+            
+        # 4. 将 DataFrame 转回字典数组返回给前端渲染 (处理 NaN)
+        df_new = df_new.replace({np.nan: None}) 
+        records = df_new.to_dict(orient='records')
+
+        # 5. 删除临时文件
+        os.remove(temp_file_path)
+        logger.info(f"Deleted temporary file: {temp_file_path}")
+        
+        return {
+            "code": 200, 
+            "msg": f"批量预测完成，共诊断 {len(records)} 条数据！",
+            "data": records,
+            "model_used": model_path.split('/')[-1] if model_type=='pycaret' else model_path.split('/')[-2]
+        }
+        
+    except Exception as e:
+        # 确保即使预测失败也删除临时文件
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+            logger.warning(f"Deleted temporary file after error: {temp_file_path}")
+        logger.error(traceback.format_exc())
+        return {"code": 500, "msg": f"批量预测失败，请检查该无标签文件的列特征是否与训练时一致！错误: {str(e)}"}
+
 
 if __name__ == "__main__":
     import uvicorn
