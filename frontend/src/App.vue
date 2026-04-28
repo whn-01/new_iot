@@ -324,16 +324,24 @@ const activeTab = ref('train')
 
 // 新增：模型选择相关变量
 // availableModels 仅包含显示信息和值
+// availableModels 仅包含显示信息和值
+// availableModels 仅包含显示信息和值
+// availableModels 仅包含显示信息和值 (修改后)
 const availableModels = ref([
-  { name: 'TextCNN_Hyperopt_AutoFeat', displayName: 'TextCNN' },
-  { name: 'Bi-LSTM_Hyperopt_AutoFeat', displayName: 'Bi-LSTM' },
-  { name: 'Bi-GRU_Hyperopt_AutoFeat', displayName: 'Bi-GRU' },
-  { name: 'Vanilla-RNN_Hyperopt_AutoFeat', displayName: 'Vanilla-RNN' },
-  { name: 'FastText-Embed_Hyperopt_AutoFeat', displayName: 'FastText-Embed' },
-  { name: 'RF_AutoFeat', displayName: 'Random Forest' },
-  { name: 'NB_AutoFeat', displayName: 'Naive Bayes' }
+  // --- 传统机器学习 (PyCaret) ---
+  { name: 'rf', displayName: 'Random Forest (随机森林)' }, // name 现在是 'rf'
+  { name: 'nb', displayName: 'Naive Bayes (朴素贝叶斯)' }, // name 现在是 'nb'
+  
+  // --- 新增：专门的表格深度学习架构 ---
+  { name: 'TabNet', displayName: 'TabNet (表格注意力)' },       // name 现在是 'TabNet'
+  { name: 'Transformer', displayName: 'TabTransformer (表格架构)' }, // name 现在是 'Transformer'
+  { name: 'Deep-MLP', displayName: 'Deep-MLP (深度全连接)' }, // name 现在是 'Deep-MLP'
+  
+  // --- 保留：用序列融合器强力改装的架构 ---
+  { name: 'CNN', displayName: '1D-CNN (卷积神经网络)' }, // name 现在是 'CNN'
+  { name: 'LSTM', displayName: 'Bi-LSTM (双向长短期记忆)' }, // name 现在是 'LSTM'
+  { name: 'GRU', displayName: 'Bi-GRU (双向门控循环)' } // name 现在是 'GRU'
 ]);
-
 // 使用一个 ref 来存储选中的模型名称列表
 const selectedModelNamesList = ref([]);
 
@@ -866,17 +874,34 @@ const deployModel = async (row) => {
   }
 }
 // 5. 自定义模型上传成功
-const handleCustomUploadSuccess = (res) => {
+// 5. 自定义模型上传成功 (修改版)
+const handleCustomUploadSuccess = async (res) => { // 添加 async 关键字
   if (res.code === 200) {
-    customUploadStatus.value = `模型 "${customModelName.value}" 上传成功！已存入私有仓库。`
-    ElMessage.success('自研模型托管成功')
-    customModelName.value = ''
-  } else {
-    customUploadStatus.value = '上传失败：' + (res.msg || '未知错误')
-    ElMessage.error('上传失败')
-  }
-}
+    customUploadStatus.value = `模型 "${customModelName.value}" 上传成功！已存入私有仓库。`;
+    ElMessage.success('自研模型托管成功');
 
+    // 清空模型名称输入框
+    customModelName.value = '';
+
+    // --- 新增：上传成功后，刷新“所有已训练模型”列表 ---
+    try {
+      // 调用之前定义的 loadAllTrainedModels 函数
+      await loadAllTrainedModels(); // 使用 await 等待列表刷新完成
+      console.log('自定义模型上传后，已刷新所有已训练模型列表。');
+      // 可选：可以在此处滚动到模型列表，让用户立刻看到新模型
+      // window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); // 滚动到底部
+    } catch (err) {
+      console.error('上传后刷新模型列表失败:', err);
+      // 可选：提示用户手动刷新列表
+      ElMessage.warning('模型上传成功，但刷新列表失败，请稍后手动刷新页面查看。');
+    }
+    // --------------------------
+  } else {
+    // 后端返回非 200 状态码时的处理
+    customUploadStatus.value = '上传失败：' + (res.msg || '未知错误');
+    ElMessage.error('上传失败: ' + (res.msg || '未知错误'));
+  }
+};
 // 6. 生命周期：初始化时加载数据集文件夹列表
 onMounted(() => {
   loadFolders();
