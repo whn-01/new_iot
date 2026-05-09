@@ -374,7 +374,7 @@ const trainRatio = ref(0.8)
 const isTraining = ref(false)
 const currentTaskId = ref('')
 const leaderboard = ref([])
-let pollingTimer = null
+// let pollingTimer = null
 
 const premiumModels = ref([])
 const customModelName = ref('')
@@ -657,145 +657,140 @@ function startGpuStatusPolling() {
 }
 
 // 修改：触发一键训练
-// 修改：触发一键训练
+// 修改：触发一键训练 (修改轮询启动部分)
 const startTraining = async () => {
-  if (!selectedFolder.value) {
-    ElMessage.warning('请先选择一个数据集文件夹！')
-    return
+  if (!selectedFolder.value || !labelColumn.value.trim() || selectedModelNamesList.value.length === 0) {
+      ElMessage.error('请选择数据集文件夹、标签列和至少一个模型');
+      return;
   }
-
-  if (selectedFiles.value.length === 0 && !selectAllChecked.value) {
-     ElMessage.warning('请选择至少一个数据文件，或者点击“全选本文件夹”。')
-     return
-  }
-
-  if (selectedModelNamesList.value.length === 0) {
-    ElMessage.warning('请至少选择一个模型进行训练！')
-    return
-  }
-
-  if (!labelColumn.value.trim()) {
-    ElMessage.warning('请输入数据集的标签列名！')
-    return
-  }
-
-  isTraining.value = true
-  // --- 修改 1: 初始化 leaderboard 为包含所有选中模型的占位符 ---
-  // 这样前端就有了所有模型的初始状态
-  leaderboard.value = selectedModelNamesList.value.map(name => ({
-    model_name: name,
-    f1_score: null, // 初始分数为 null
-    accuracy: null, // 初始精度为 null
-    status: 'Pending', // 初始状态为 Pending (注意大小写需与后端一致，这里是 'Pending'，后端是 'pending')
-    model_path: null
-  }))
-  // ----------------------------
 
   try {
-    const formData = new FormData()
-    formData.append('folder_name', selectedFolder.value)
-    let fileNamesToSend = selectAllChecked.value ? '' : selectedFiles.value.join(',')
-    formData.append('file_names', fileNamesToSend)
-    formData.append('train_ratio', trainRatio.value)
-    formData.append('label_column', labelColumn.value.trim())
-    formData.append('selected_models', JSON.stringify(selectedModelNamesList.value))
+      const formData = new FormData();
+      formData.append('folder_name', selectedFolder.value);
 
-    const response = await axios.post('http://localhost:8000/api/train/start', formData)
+      // --- 关键修改：智能处理 file_names (假设您已经应用了上一个问题的修改) ---
+      const MAX_FILE_COUNT = 50;
+      let fileNamesToSend = '';
+      if (selectedFiles.value && selectedFiles.value.length > 0) {
+          if (selectedFiles.value.length <= MAX_FILE_COUNT) {
+              fileNamesToSend = selectedFiles.value.join(',');
+          } else {
+              console.warn(`文件数量 (${selectedFiles.value.length}) 超过阈值 (${MAX_FILE_COUNT})，将使用“扫描整个文件夹”模式。`);
+              fileNamesToSend = '';
+          }
+      }
+      console.log('Sending file_names:', fileNamesToSend, typeof fileNamesToSend);
+      formData.append('file_names', fileNamesToSend);
 
-    if (response.data.code === 200) {
-      currentTaskId.value = response.data.task_id
-      ElMessage.success('训练任务已提交，后台正在并行计算...')
-      startPolling()
-    } else {
-      throw new Error(response.data.msg || '启动失败')
-    }
+      formData.append('train_ratio', trainRatio.value);
+      formData.append('label_column', labelColumn.value.trim());
+      formData.append('selected_models', JSON.stringify(selectedModelNamesList.value));
+
+      const response = await axios.post('http://localhost:8000/api/train/start', formData);
+      if (response.data.code === 200) {
+          ElMessage.success('训练任务已启动');
+          currentTaskId.value = response.data.task_id; // 保存 task_id
+
+          // --- 修改：初始化 Leaderboard，状态为 Pending ---
+          // 根据 selectedModelNamesList 初始化 leaderboard
+          leaderboard.value = selectedModelNamesList.value.map(name => ({
+              model_name: name,
+              f1_score: null,
+              accuracy: null,
+              model_path: null,
+              status: 'Pending' // 初始状态
+          }));
+
+          isTraining.value = true; // 设置为 true，显示加载动画和按钮状态
+          pollTaskStatus(); // 开始轮询
+      } else {
+          // 如果 /start 接口返回非 200，直接报错
+          ElMessage.error(`启动失败: ${response.data.msg || response.data.detail || '未知错误'}`);
+      }
   } catch (error) {
-    console.error(error)
-    isTraining.value = false
-    // 清空排行榜
-    leaderboard.value = []
-    const errorMsg = error.response?.data?.detail || error.message
-    ElMessage.error('训练启动失败：' + JSON.stringify(errorMsg))
+      console.error('Training start error:', error);
+      let errorMessage = '训练启动失败：';
+      if (error.response) {
+          // 获取后端返回的具体错误信息
+          errorMessage += JSON.stringify(error.response.data);
+      } else if (error.request) {
+          // 请求已发出但没有收到响应
+          errorMessage += '网络错误或服务器无响应';
+      } else {
+          // 发生了触发错误的设置问题
+          errorMessage += error.message;
+      }
+      ElMessage.error(errorMessage);
   }
-}
+};
 
-// 3. 轮询训练状态 (核心修复部分 - 增量显示)
-const startPolling = () => {
-  if (pollingTimer) clearInterval(pollingTimer)
+// 修改：轮询训练状态 (增加错误处理和状态更新)
+let pollingTimer = null; // 确保 pollingTimer 在外部定义
+
+const pollTaskStatus = () => { // 重命名函数，使其更清晰
+  if (pollingTimer) clearInterval(pollingTimer);
 
   pollingTimer = setInterval(async () => {
-    try {
-      const res = await axios.get(`http://localhost:8000/api/train/status/${currentTaskId.value}`)
+    if (!currentTaskId.value) {
+        // 如果 task_id 丢失，停止轮询
+        console.error('Task ID lost during polling, stopping.');
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+        isTraining.value = false; // 停止加载状态
+        return;
+    }
 
-      const responseCode = res.data?.code
-      const responseData = res.data?.data || res.data
+    try {
+      const res = await axios.get(`http://localhost:8000/api/train/status/${currentTaskId.value}`);
+
+      const responseCode = res.data?.code;
+      const responseData = res.data?.data || res.data;
 
       if (responseCode === 200) {
-        const status = responseData.status
-        const models = responseData.models || []
+        const status = responseData.status; // 整体任务状态
+        const models = responseData.models || [];
 
         if (models.length > 0) {
-          // --- 修改 2: 遍历后端返回的 models，更新前端 leaderboard ---
-          // 这次我们更细致地处理
           models.forEach(returnedModel => {
              const existingModelIndex = leaderboard.value.findIndex(item => item.model_name === returnedModel.model_name);
              if (existingModelIndex > -1) {
-               // 找到前端 leaderboard 中对应的模型，直接更新其属性
-               // 注意：这里直接赋值，Vue 2.x 需要用 $set 或者直接替换整个对象才能触发响应式更新
-               // Vue 3.x 对象属性的更改是响应式的，所以直接赋值即可
+               // 更新具体模型的状态和指标
                leaderboard.value[existingModelIndex].f1_score = returnedModel.f1_score;
                leaderboard.value[existingModelIndex].accuracy = returnedModel.accuracy;
                leaderboard.value[existingModelIndex].model_path = returnedModel.model_path;
-               // 注意：后端状态是 'pending', 'completed', 'failed'，前端是 'Pending', 'Completed', 'Failed'
-               // 需要映射一下，或者统一约定
+               // 映射后端状态到前端状态
                if (returnedModel.status === 'completed') {
-                 leaderboard.value[existingModelIndex].status = 'Ready'; // 或者 'Completed'
+                 leaderboard.value[existingModelIndex].status = 'Ready';
                } else if (returnedModel.status === 'failed') {
                  leaderboard.value[existingModelIndex].status = 'Failed';
-               } else if (returnedModel.status === 'pending') {
-                 leaderboard.value[existingModelIndex].status = 'Pending';
+                 // 可选：可以为失败的模型添加更详细的错误信息
+                 // leaderboard.value[existingModelIndex].error_msg = returnedModel.error_msg; // 如果后端提供了
+               } else if (returnedModel.status === 'pending' || returnedModel.status === 'running') { // 假设有 running
+                 leaderboard.value[existingModelIndex].status = returnedModel.status.charAt(0).toUpperCase() + returnedModel.status.slice(1);
                }
-               // 如果后端还有 'running' 状态，也可以加上
-               // else if (returnedModel.status === 'running') {
-               //   leaderboard.value[existingModelIndex].status = 'Running';
-               // }
-               // 如果后端没有返回 status，可以根据 f1_score 是否有值来判断
-               else if (returnedModel.f1_score !== null && returnedModel.f1_score !== undefined) {
-                 leaderboard.value[existingModelIndex].status = 'Ready';
-               }
-             } else {
-               // 理论上不应该发生，因为前端的 leaderboard 是根据 selectedModelNamesList 初始化的，
-               // 而 selectedModelNamesList 也是发给后端的。但如果后端返回了别的模型，可以考虑添加。
-               // 一般情况下可以忽略。
              }
           });
 
-          // --- 修改 3: 检查是否所有模型都已完成，如果有新完成的，则排序 ---
-          const completedModels = leaderboard.value.filter(m => m.status === 'Ready'); // 或 'Completed'
-          // 如果有模型完成了，并且之前没有完成过，可以触发排序
-          // 更简单的做法是，只要有模型的 f1_score 不为 null，就排序
+          // 排序
           const hasAnyScore = leaderboard.value.some(m => m.f1_score !== null);
-
           if (hasAnyScore) {
-              // 对整个 leaderboard 进行排序，将有分数的排前面，空的排后面
-              // 确保 null 值被视为最小值
               leaderboard.value.sort((a, b) => {
                   if (a.f1_score === null && b.f1_score === null) return 0;
                   if (a.f1_score === null) return 1;
                   if (b.f1_score === null) return -1;
-                  return b.f1_score - a.f1_score; // 降序排列
+                  return b.f1_score - a.f1_score;
               });
           }
         }
 
-        // --- 修改 4: 只有当后端任务状态变为 completed 或 failed 时才停止轮询 ---
+        // --- 修改：检查整体任务状态 ---
         if (status === 'completed' || status === 'failed') {
-          // 最终排序，确保最终顺序是正确的
-          leaderboard.value.sort((a, b) => (b.f1_score || 0) - (a.f1_score || 0)); // (b.f1_score || 0) 确保 null 被视为 0
+          // 最终排序
+          leaderboard.value.sort((a, b) => (b.f1_score || 0) - (a.f1_score || 0));
 
-          isTraining.value = false
-          clearInterval(pollingTimer)
-          pollingTimer = null
+          isTraining.value = false; // 停止加载状态
+          clearInterval(pollingTimer);
+          pollingTimer = null;
 
           if (status === 'completed') {
             ElNotification({
@@ -803,28 +798,48 @@ const startPolling = () => {
               message: '所有选中模型训练完毕，请查看排行榜。',
               type: 'success',
               duration: 5000
-            })
+            });
           } else {
+            // 如果整体任务失败，给出更明显的提示
+            ElMessage.error('训练任务整体失败，请检查后端日志或数据。');
             ElNotification({
               title: '训练异常',
-              message: '训练过程中发生错误，请查看日志。',
+              message: '训练过程中发生错误，请查看日志或数据质量。',
               type: 'error',
-            })
+            });
           }
         }
       } else {
-          // 如果 API 返回 code 不是 200，可以考虑停止轮询或处理错误
+          // 如果 /status 接口返回非 200，说明轮询过程中出现了问题
           console.error('Polling received non-200 response:', res.data);
-          // 可选：停止轮询
-          // isTraining.value = false;
-          // clearInterval(pollingTimer);
-          // pollingTimer = null;
+          // 可选：停止轮询并标记失败
+          isTraining.value = false;
+          clearInterval(pollingTimer);
+          pollingTimer = null;
+          // 尝试解析错误信息
+          let errorMsg = res.data?.msg || res.data?.detail || '轮询状态时收到非200响应';
+          ElMessage.error('获取训练状态失败: ' + errorMsg);
+          ElNotification({
+              title: '轮询错误',
+              message: '无法获取训练状态: ' + errorMsg,
+              type: 'error',
+          });
       }
     } catch (error) {
-      console.error('Polling error:', error)
-      // 可选：对轮询错误进行处理，例如记录或通知
+      console.error('Polling error:', error);
+      // 捕获网络错误等
+      isTraining.value = false;
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+      let errorMsg = error.response?.data?.msg || error.response?.data?.detail || error.message || '轮询时发生网络错误';
+      ElMessage.error('轮询训练状态失败: ' + errorMsg);
+      ElNotification({
+          title: '轮询错误',
+          message: '与服务器通信失败，无法获取进度: ' + errorMsg,
+          type: 'error',
+      });
     }
-  }, 2000) // 轮询间隔 2 秒
+  }, 2000); // 轮询间隔 2 秒
 }
 // 4. 部署模型 (修复表单传参 Bug)
 // 4. 部署模型 (修复ElMessage.loading调用问题)
@@ -920,14 +935,15 @@ onMounted(() => {
 })
 
 // 7. 清理定时器
+// 7. 清理定时器
 onBeforeUnmount(() => {
-  if (pollingTimer) {
-    clearInterval(pollingTimer)
-    pollingTimer = null
+  if (pollingTimer) { // 使用正确的变量名
+    clearInterval(pollingTimer);
+    pollingTimer = null;
   }
   // 清理 GPU 状态轮询
   if (gpuStatusIntervalId) {
-    clearInterval(gpuStatusIntervalId);
+    clearInterval(gpuStatusId);
     gpuStatusIntervalId = null;
   }
 })

@@ -1,4 +1,8 @@
 import os
+# import os
+os.environ["RAY_memory_usage_threshold"] = "1.0"
+os.environ["RAY_memory_monitor_refresh_ms"] = "0"
+os.environ["RAY_object_spilling_threshold"] = "0.99"
 import uuid
 import json
 import pandas as pd
@@ -32,6 +36,11 @@ from datetime import datetime
 import joblib  # 用于加载PyCaret模型
 import pickle
 import joblib
+import uuid
+import gc
+import torch
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, accuracy_score
 # 将 Python 默认的 1000 层递归限制调高到 100000 层，防止 Ray 打包时堆栈溢出崩溃！
 sys.setrecursionlimit(100000)
 
@@ -186,7 +195,22 @@ def initialize_ray_runtime() -> Dict[str, Any]:
     ray_cpus = max(2, total_cpus - 2) if total_cpus > 4 else total_cpus
     ray_gpus = profile["gpu_count"] if profile["has_gpu"] else 0
 
-    ray.init(num_cpus=ray_cpus, num_gpus=ray_gpus, ignore_reinit_error=True)
+    os.environ["RAY_memory_usage_threshold"] = "0.98" 
+    os.environ["RAY_object_spilling_threshold"] = "0.95"
+    os.environ["RAY_memory_monitor_refresh_ms"] = "0"  
+
+    try:
+        ray.init(
+            num_cpus=ray_cpus, 
+            num_gpus=ray_gpus, 
+            ignore_reinit_error=True,
+            _memory=8 * 1024 * 1024 * 1024,           # 8 GB 内存限制
+            object_store_memory=4 * 1024 * 1024 * 1024  # 4 GB 共享缓存限制
+        )
+    except Exception as e:
+        logger.warning(f"Ray 初始化使用自定义内存限制失败，尝试默认启动: {e}")
+        ray.init(num_cpus=ray_cpus, num_gpus=ray_gpus, ignore_reinit_error=True)
+        
     patch_ludwig_gpu_wait()
 
     try:
@@ -246,16 +270,22 @@ LUDWIG_ALGORITHMS = {
     "LSTM": {"type": "concat"},
     "GRU": {"type": "concat"}
 }
-
+# 在全局变量定义区域添加
+UPLOAD_DIR = "/home/yhz/local_iot/banckend/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 def has_available_gpu() -> bool:
     return bool(RAY_RUNTIME_PROFILE.get("has_gpu", False))
 
 def build_gpu_train_config(use_gpu: bool) -> Dict[str, Any]:
+    # 🚨 核心修复：强制限制单个 Trial 的 CPU 数量为 2
+    # 防止 Ray 的底层 Data Worker 数量暴走导致并发读写耗尽内存
+    cpu_per_trial = 2 
+    
     ludwig_executor = {
         "type": "ray",
-        "num_samples": 6,  # 从 3 增加到 6，给超参搜索更多机会
-        "max_concurrent_trials": 2 if use_gpu else 1, # 如果有 GPU，可以并发 2 个 trial
-        "cpu_resources_per_trial": max(1, min(4, int(RAY_RUNTIME_PROFILE.get("ray_cpus", 2) // 2))),
+        "num_samples": 2,  # 稍微减少 hyperopt 试验数量节约内存
+        "max_concurrent_trials": 1, 
+        "cpu_resources_per_trial": cpu_per_trial,
         "gpu_resources_per_trial": 1 if use_gpu else 0,
     }
 
@@ -474,595 +504,270 @@ def _detect_time_like_columns(df: pd.DataFrame) -> list:
             seen.add(c)
     return out
 # ==========================================
-# 后台异步训练引擎 (全动态多模态融合版) - 增加调试日志
+# 后台训练引擎 (终极形态：记忆回放 + 防灾难遗忘)
+# 专治物联网时序失衡导致的 F1=0.5 现象
 # ==========================================
 def run_hybrid_pipeline(task_id: str, file_paths: list, train_ratio: float, label_column: str, selected_models_list: list):
     model_root = "./storage/trained_models/latest/"
 
-    if os.path.exists(model_root):
-        logger.info(f"🧹 开始清理旧模型目录: {model_root}")
-        try:
-            # 尝试直接删除目录树，忽略常见错误（如权限或临时锁定）
-            shutil.rmtree(model_root, ignore_errors=True)
-            logger.info(f"✅ 旧模型目录已清理: {model_root}")
-        except Exception as e:
-            # 如果 ignore_errors=True 仍失败，则记录更详细的错误
-            logger.warning(f"⚠️ 清理旧模型目录时遇到问题 (可能文件被占用): {model_root}, 错误: {e}")
+    if os.path.exists(model_root): shutil.rmtree(model_root, ignore_errors=True)
     os.makedirs(model_root, exist_ok=True)
     task_file = f"./storage/tasks/{task_id}.json"
-    leaderboard = []
+    leaderboard =[]
+
     def write_task(status: str, msg: str = "", models=None):
         payload = {"status": status, "models": models if models is not None else leaderboard}
-        if msg:
-            payload["msg"] = msg
+        if msg: payload["msg"] = msg
         with open(task_file, "w") as wf:
             json.dump(payload, wf)
 
-    with open(task_file, "w") as f:
-        json.dump({"status": "running", "msg": "任务已创建，准备读取数据", "models":[]}, f)
+    if not file_paths:
+        write_task("failed", "未找到有效数据",[])
+        return
+    label_column = label_column.strip()
 
-    dfs =[]
+    # =================================================================
+    # 阶段一：全量扫描构建【平衡记忆胶囊】(Reservoir Sampling)
+    # 彻底解决故障类数据在文件末尾导致的 "没学到" 和 "灾难性遗忘"
+    # =================================================================
+    write_task("running", "第 1/3 步：正在扫描全量文件，构建【平衡记忆胶囊】以防灾难性遗忘...")
+    class_dfs = {}
+    MAX_PER_CLASS = 50000  # 保证每种类别最多存 5 万条，绝对均衡！
+
     for fp in file_paths:
         if not os.path.exists(fp): continue
         sep = '\t' if fp.lower().endswith('.tsv') else ','
         try:
-            dfs.append(pd.read_csv(fp, sep=sep))
+            for chunk in pd.read_csv(fp, sep=sep, chunksize=50000):
+                chunk.columns = chunk.columns.str.strip()
+                chunk = chunk.dropna(subset=[label_column]).copy()
+                if chunk.empty: continue
+                
+                # 按标签分别提取
+                for label_val, group in chunk.groupby(label_column):
+                    if label_val not in class_dfs:
+                        class_dfs[label_val] = group
+                    else:
+                        class_dfs[label_val] = pd.concat([class_dfs[label_val], group], ignore_index=True)
+                    
+                    # 动态蓄水池，超过上限就随机淘汰，保持各类别数量绝对平等
+                    if len(class_dfs[label_val]) > MAX_PER_CLASS:
+                        class_dfs[label_val] = class_dfs[label_val].sample(n=MAX_PER_CLASS, random_state=42)
         except Exception as e:
-            logger.error(f"读取文件失败 {fp}: {str(e)}")
+            logger.error(f"构建记忆池时读取文件 {fp} 异常: {e}")
 
-    if not dfs:
-        with open(task_file, "w") as f:
-            json.dump({"status": "failed", "msg": "未找到有效数据", "models":[]}, f)
+    if not class_dfs:
+        write_task("failed", "数据清洗后全为空",[])
         return
 
-    df = pd.concat(dfs, ignore_index=True)
-    df.columns = df.columns.str.strip()
-    label_column = label_column.strip()
+    # 将各类别池子混合并彻底打乱 (洗牌)
+    base_sample_df = pd.concat(class_dfs.values(), ignore_index=True)
+    base_sample_df = base_sample_df.sample(frac=1.0, random_state=42).reset_index(drop=True)
 
-    if label_column not in df.columns:
-        with open(task_file, "w") as f:
-            json.dump({"status": "failed", "msg": f"缺少标签列: '{label_column}'", "models":[]}, f)
+    if base_sample_df[label_column].nunique() < 2:
+        write_task("failed", f"致命错误: 全量扫描后依然只找到 1 种标签！请确认数据集包含故障数据。",[])
         return
 
-    # 统一清洗：移除标签缺失行（PyCaret 对目标列缺失会直接报错）
-    before_rows = len(df)
-    df = df.dropna(subset=[label_column]).copy()
-    after_rows = len(df)
-    dropped_rows = before_rows - after_rows
-    if dropped_rows > 0:
-        logger.warning(f"⚠️ Task {task_id}: 目标列 '{label_column}' 存在缺失，已移除 {dropped_rows} 行。")
-    if after_rows == 0:
-        with open(task_file, "w") as f:
-            json.dump({"status": "failed", "msg": f"标签列 '{label_column}' 全为空，无法训练。", "models":[]}, f)
-        return
-
-    # 自动推断特征类型
-    column_types = detect_column_types(df, label_column) # 使用修复后的函数
-    text_columns = [col for col, typ in column_types.items() if typ == 'text']
+    # 计算全局推断类型
+    column_types = detect_column_types(base_sample_df, label_column)
+    text_columns =[col for col, typ in column_types.items() if typ == 'text']
     first_text_col = text_columns[0] if text_columns else None
+    has_time_like_col = len(_detect_time_like_columns(base_sample_df)) > 0
+
     use_gpu = has_available_gpu()
     gpu_cfg = build_gpu_train_config(use_gpu)
     ludwig_train_profile = get_ludwig_dynamic_train_profile(use_gpu)
 
-    # 是否存在“真实时间顺序”信号：用于决定是否启用基于 timeseries 的 CNN/LSTM/GRU。
-    # 不同工厂数据集列名不统一，因此同时使用“列名 + 数值统计特征”来自动识别时间列。
-    time_like_cols = _detect_time_like_columns(df)
-    has_time_like_col = len(time_like_cols) > 0
+    seq_models = {"CNN", "LSTM", "GRU"}
+    numeric_cols =[c for c, t in column_types.items() if t == "number" and c != label_column]
+    timeseries_col = "__numeric_timeseries__"
+    use_timeseries_pack = any(m in selected_models_list for m in seq_models) and len(numeric_cols) > 0 and has_time_like_col
 
-    # --- 新增调试日志 ---
-    print(f"[DEBUG] Task {task_id} - Target column: '{label_column}'")
-    print(f"[DEBUG] Task {task_id} - Detected column types: {column_types}")
-    input_feature_names = [col for col, typ in column_types.items() if typ != 'skip']
-    print(f"[DEBUG] Task {task_id} - Potential input features: {input_feature_names}")
-    print(f"[DEBUG] Task {task_id} - GPU available: {use_gpu}")
-    print(f"[DEBUG] Task {task_id} - Ray runtime profile: {RAY_RUNTIME_PROFILE}")
-    print(f"[DEBUG] Task {task_id} - Ludwig executor config: {gpu_cfg['ludwig_executor']}")
-    print(f"[DEBUG] Task {task_id} - Ludwig dynamic train profile: {ludwig_train_profile}")
-    print(f"[DEBUG] Task {task_id} - Detected time-like columns: {time_like_cols}")
-    
-    if label_column in input_feature_names:
-        logger.error(f"[CRITICAL ERROR] Task {task_id}: Label column '{label_column}' is included in input features! This indicates a bug in detect_column_types.")
-        with open(task_file, "w") as f:
-            json.dump({"status": "failed", "msg": f"Internal error: Label column was incorrectly added as an input feature.", "models":[]}, f)
-        return
-    else:
-        logger.info(f"[INFO] Task {task_id}: Label column '{label_column}' correctly excluded from input features.")
-    print(f"[DEBUG] Task {task_id} - Data shape after cleaning: {df.shape}")
-    print(f"[DEBUG] Task {task_id} - Label distribution:\n{df[label_column].value_counts()}")
-    print(f"[DEBUG] Task {task_id} - Feature columns (excluding label): {input_feature_names}")
-    
-    # 检查输入特征是否有 NaN 或 Inf
-    input_df_subset = df[input_feature_names]
-    if input_df_subset.isnull().any().any():
-        logger.warning(f"⚠️ Task {task_id}: Input features contain NaN values.")
-    if input_df_subset.isin([np.inf, -np.inf]).any().any():
-        logger.warning(f"⚠️ Task {task_id}: Input features contain Inf/-Inf values.")
-    # --- END 新增调试日志 ---
+    # 一次性处理时间序列特征
+    if use_timeseries_pack:
+        base_sample_df[timeseries_col] = (
+            base_sample_df[numeric_cols].astype(float)
+            .replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            .agg(lambda r: " ".join(f"{v:.8g}" for v in r.values), axis=1)
+        )
+
+    # ⭐️ 核心防呆：分离出 10% 纯洁的未见数据作为最终 "期末考卷" (绝不参与训练)
+    replay_buffer_df, test_df = train_test_split(
+        base_sample_df, test_size=0.1, stratify=base_sample_df[label_column], random_state=42
+    )
 
     try:
-        # ================== 引擎 1：PyCaret 传统机器学习 ==================
-        write_task("running", "开始 PyCaret 训练")
-        # 为避免文本列导致 OOM，PyCaret 统一使用非文本特征子集；这样既稳定又能保留 PyCaret 全流程
-        pycaret_feature_cols = [c for c, t in column_types.items() if t in ("number", "category")]
-        if not pycaret_feature_cols:
-            logger.warning(f"⚠️ Task {task_id}: 无可用非文本特征，PyCaret 跳过。")
-        else:
-            pycaret_df = df[pycaret_feature_cols + [label_column]].copy()
-            setup_kwargs = {
-                "data": pycaret_df, "target": label_column, "train_size": train_ratio,
-                "verbose": False, "session_id": 42,
-                "n_jobs": 1, "use_gpu": gpu_cfg["pycaret_use_gpu"], "fold": 3
-            }
-            setup(**setup_kwargs)
-
-            # --- 修改：只训练选中的 PyCaret 模型 ---
-            # 注意：这里的 py_caret_map 需要根据 selected_models_list 中的名称进行匹配
-            # 假设 selected_models_list 中包含的是 'rf', 'nb' 等
-            # 那么需要确保前端发送的名称与这里匹配
-            py_caret_codes_map = {'rf': 'RF', 'nb': 'NB'} # 内部代码到显示名的映射
-            for internal_code, display_name in py_caret_codes_map.items():
-                if internal_code in selected_models_list: # 检查内部代码是否被选中
-                    model_name = internal_code # 使用基础模型名作为模型名称
-                    try:
+        # =================================================================
+        # 引擎 1：PyCaret (吞噬完美的平衡记忆胶囊，分数将彻底翻身！)
+        # =================================================================
+        pycaret_models_to_train =[m for m in ['rf', 'nb'] if m in selected_models_list]
+        if pycaret_models_to_train:
+            write_task("running", "开始训练 PyCaret (此时它见到了完美均衡的数据)...")
+            pycaret_feature_cols =[c for c, t in column_types.items() if t in ("number", "category")]
+            if pycaret_feature_cols:
+                pycaret_df = replay_buffer_df[pycaret_feature_cols +[label_column]].copy()
+                try:
+                    setup_kwargs = {
+                        "data": pycaret_df, "target": label_column, "train_size": train_ratio,
+                        "verbose": False, "session_id": 42, "n_jobs": -1, "use_gpu": False, "fold": 3
+                    }
+                    setup(**setup_kwargs)
+                    for internal_code in pycaret_models_to_train:
                         trained_model = create_model(internal_code, verbose=False)
                         tuned_model = tune_model(trained_model, optimize='F1', n_iter=10, verbose=False)
                         metrics_df = pull()
-
-                        f1_score = metrics_df.loc['Mean', 'F1']
-                        accuracy = metrics_df.loc['Mean', 'Accuracy']
-                        
-                        # --- 关键修改：保存路径直接使用基础模型名 ---
-                        out_path = f"./storage/trained_models/latest/{model_name}" # 例如 ./storage/trained_models/latest/rf
-                        save_model(tuned_model, out_path) # 这会生成 rf.pkl
-
+                        out_path = f"./storage/trained_models/latest/{internal_code}"
+                        save_model(tuned_model, out_path)
                         leaderboard.append({
-                            "model_name": model_name, # 使用基础模型名
-                            "f1_score": round(float(f1_score), 4),
-                            "accuracy": round(float(accuracy), 4), 
-                            # --- 修改 model_path 以反映实际的 .pkl 文件名 ---
-                            "model_path": out_path + ".pkl" # 例如 rf.pkl
+                            "model_name": internal_code,
+                            "f1_score": round(float(metrics_df.loc['Mean', 'F1']), 4),
+                            "accuracy": round(float(metrics_df.loc['Mean', 'Accuracy']), 4), 
+                            "model_path": out_path + ".pkl"
                         })
-                        # 实时更新状态，报告单个模型完成
-                        write_task("running", f"PyCaret 模型完成: {model_name}", leaderboard)
-                    except Exception as e:
-                        logger.error(f"❌ {model_name} 训练异常: {str(e)}")
-                        # 失败模型不再伪造 0 分，避免与真实低分混淆
-                        leaderboard.append({
-                            "model_name": model_name, "f1_score": None,
-                            "accuracy": None, "model_path": None, "status": "failed",
-                            "error": str(e)
-                        })
-                        write_task("running", f"PyCaret 模型失败: {model_name}", leaderboard)
+                except Exception as e:
+                    logger.error(f"PyCaret 异常: {e}")
+                finally:
+                    if 'pycaret_df' in locals(): del pycaret_df; gc.collect()
 
-
-        # ================== 引擎 2：Ludwig 深度学习超参搜索 ==================
-        write_task("running", "开始 Ludwig 训练")
-        # 计算类别权重（应对类别不平衡，否则很容易塌缩成“永远预测多数类”，导致所有模型分数完全一样）
-        label_counts = df[label_column].value_counts()
-        if label_counts.empty:
-            class_weights = None
-        else:
-            max_count = float(label_counts.max())
-            # Ludwig 接受 dict 或 list；这里用 dict，key 用字符串以保证 JSON 序列化稳定
-            class_weights = {str(k): float(max_count / float(v)) for k, v in label_counts.items()}
-        # --- 修改：只训练选中的 Ludwig 模型 ---
-        # 假设 selected_models_list 中包含的是 'TabNet', 'Transformer', 'Deep-MLP', 'CNN', 'LSTM', 'GRU' 等
-        # LUDWIG_ALGORITHMS 应该包含这些键
-        for base_model_name in LUDWIG_ALGORITHMS.keys(): # 遍历所有支持的 Ludwig 算法
-            if base_model_name in selected_models_list: # 检查是否被选中
-                name = base_model_name # 使用基础模型名作为模型名称
-                write_task("running", f"正在训练 Ludwig 模型: {name}")
-                # 为每个 Ludwig 模型构建独立数据副本（避免不同模型间互相污染特征列）
-                df_ludwig = df.copy()
-
-                # 对 CNN/LSTM/GRU：把所有数值列打包成一个 timeseries 列，让 encoder 真正跑 CNN/RNN
-                seq_models = {"CNN", "LSTM", "GRU"}
-                numeric_cols = [c for c, t in column_types.items() if t == "number" and c != label_column]
-                timeseries_col = "__numeric_timeseries__"
-                # 只有检测到时间列时才启用（否则是“伪序列”，通常会导致 F1 低得离谱）
-                use_timeseries_pack = base_model_name in seq_models and len(numeric_cols) > 0 and has_time_like_col
-                # 没有时间列时，不跳过：退化为“表格深度模型变体”继续训练，
-                # 但会使用不同的 combiner 超参搜索空间，避免与 Deep-MLP 同构同分。
-                is_tabular_seq_fallback = base_model_name in seq_models and not use_timeseries_pack
-                if use_timeseries_pack:
-                    # space tokenizer：每行是一个数值序列字符串，例如 "0.1 3.5 8.0 ..."
-                    df_ludwig[timeseries_col] = (
-                        df_ludwig[numeric_cols]
-                        .astype(float)
-                        .replace([np.inf, -np.inf], np.nan)
-                        .fillna(0.0)
-                        .agg(lambda r: " ".join(f"{v:.8g}" for v in r.values), axis=1)
-                    )
-
-                temp_dataset_path = f"./storage/datasets/temp_{task_id}_{uuid.uuid4()}.csv"
-                df_ludwig.to_csv(temp_dataset_path, index=False)
-
-                # 动态组装当前模型的输入特征
-                # --- 防御性修复：再次确保 label_column 不被加入 input_features ---
-                input_features =[]
-                for col_name, col_type in column_types.items():
-                    if col_type == 'skip' or col_name == label_column: 
-                        continue
-                    # 如果启用 timeseries 打包，则单独的数值列不再作为独立输入特征加入
-                    if use_timeseries_pack and col_type == "number":
-                        continue
-                    elif col_type == 'text':
-                        input_features.append({
-                            "name": col_name, "type": "text", 
-                            "preprocessing": {"tokenizer": "characters"}
-                        })
-                    elif col_type == 'number':
-                        # ⭐ 增加 zscore，防止传感器数据（如压力几千，震动零点几）导致 CNN/LSTM 梯度爆炸
-                        input_features.append({
-                            "name": col_name, "type": "number",
-                            "preprocessing": {"normalization": "zscore"}
-                        })
-                    elif col_type == 'category':
-                        input_features.append({"name": col_name, "type": "category"})
-
-                # 如果启用 timeseries 打包，追加一个 timeseries 输入特征，并按模型选择 encoder
-                if use_timeseries_pack:
-                    if base_model_name == "CNN":
-                        ts_encoder = {"type": "parallel_cnn"}
-                    elif base_model_name == "LSTM":
-                        ts_encoder = {"type": "rnn", "cell_type": "lstm", "bidirectional": True}
-                    else:  # GRU
-                        ts_encoder = {"type": "rnn", "cell_type": "gru", "bidirectional": True}
-
-                    input_features.append(
-                        {
-                            "name": timeseries_col,
-                            "type": "timeseries",
-                            "preprocessing": {
-                                "tokenizer": "space",
-                                # 每行序列长度=数值列个数；设得更精确避免 padding/cutoff 影响
-                                "timeseries_length_limit": max(1, len(numeric_cols)),
-                                "padding_value": 0.0,
-                                "padding": "right",
-                            },
-                            "encoder": ts_encoder,
-                        }
-                    )
-                # --- 防御性修复：再次确保 label_column 不被加入 input_features ---
-                # 这是一个额外的安全网，以防 detect_column_types 有任何遗漏
-                filtered_input_features = []
-                for feat in input_features:
-                    if feat["name"] == label_column:
-                        logger.warning(f"⚠️ [DEFENSE] Column '{label_column}' was found in raw input_features but has been removed. This should ideally be handled by detect_column_types.")
-                        continue # 跳过这个特征
-                    filtered_input_features.append(feat)
-
-                input_features = filtered_input_features # 更新 input_features 列表
-
-                # --- 调试日志：确认最终的 input_features ---
-                final_input_names = [f["name"] for f in input_features]
-                print(f"[DEBUG] Task {task_id} - Final Ludwig input features for {base_model_name}: {final_input_names}")
-                print(f"[DEBUG] Task {task_id} - Text features for {base_model_name}: {[f['name'] for f in input_features if f['type'] == 'text']}")
-                if label_column in final_input_names:
-                    logger.critical(f"🚨 [CRITICAL ERROR] Task {task_id} - {base_model_name}: Label column '{label_column}' is STILL present in final input features after ALL filters! Aborting this model.")
-                    continue # 如果发生，跳过此模型训练
-                else:
-                    logger.info(f"✅ [INFO] Task {task_id} - {base_model_name}: Label column '{label_column}' correctly excluded from final input features. Proceeding.")
-                # --- END 调试日志 ---
+        # =================================================================
+        # 引擎 2：Ludwig 深度学习 (死特征拦截 + 经验回放流式训练)
+        # =================================================================
+        hyperopt_dataset_path = f"./storage/datasets/hyperopt_temp_{task_id}.csv"
+        replay_buffer_df.to_csv(hyperopt_dataset_path, index=False)
+        
+        input_features =[]
+        for col_name, col_type in column_types.items():
+            if col_type == 'skip' or col_name == label_column: continue
+            if use_timeseries_pack and col_type == "number": continue
+            
+            # 死特征拦截
+            valid_vals = replay_buffer_df[col_name].dropna()
+            if len(valid_vals) == 0 or valid_vals.nunique() <= 1:
+                continue
                 
-                hyperopt_params = {
-                    # 扩大学习率搜索范围：TabNet/Transformer 在表格上经常需要更大的 LR 才能收敛到更优解
-                    "trainer.learning_rate": {"space": "choice", "categories":[0.001, 0.0005, 0.0001]},
-                    "trainer.batch_size": {"space": "choice", "categories": ludwig_train_profile["batch_candidates"]}
-                }
-                if first_text_col:
-                    hyperopt_params[f"input_features.{first_text_col}.encoder.dropout"] = {"space": "uniform", "lower": 0.1, "upper": 0.5} # 稍微增加 dropout
+            if col_type == 'text': input_features.append({"name": col_name, "type": "text", "preprocessing": {"tokenizer": "characters"}})
+            elif col_type == 'number': input_features.append({"name": col_name, "type": "number", "preprocessing": {"normalization": "zscore"}})
+            elif col_type == 'category': input_features.append({"name": col_name, "type": "category"})
 
-                # —— 模型专属的结构超参搜索空间（这是 Transformer/MLP 分数“不动”的主要原因）——
-                if base_model_name == "Deep-MLP":
-                    hyperopt_params.update(
-                        {
-                            "combiner.num_fc_layers": {"space": "choice", "categories": [1, 2, 3, 4]},
-                            "combiner.output_size": {"space": "choice", "categories": [64, 128, 256, 512]},
-                            "combiner.dropout": {"space": "uniform", "lower": 0.0, "upper": 0.5},
-                        }
-                    )
-                elif base_model_name in {"CNN", "LSTM", "GRU"} and is_tabular_seq_fallback:
-                    # 无时间列时：把“序列模型”当作不同的表格 MLP 结构族去搜索（避免同分）
-                    if base_model_name == "CNN":
-                        hyperopt_params.update(
-                            {
-                                "combiner.num_fc_layers": {"space": "choice", "categories": [3, 4, 5]},
-                                "combiner.output_size": {"space": "choice", "categories": [256, 512]},
-                                "combiner.dropout": {"space": "uniform", "lower": 0.0, "upper": 0.3},
-                            }
-                        )
-                    elif base_model_name == "LSTM":
-                        hyperopt_params.update(
-                            {
-                                "combiner.num_fc_layers": {"space": "choice", "categories": [2, 3, 4]},
-                                "combiner.output_size": {"space": "choice", "categories": [64, 128, 256]},
-                                "combiner.dropout": {"space": "uniform", "lower": 0.1, "upper": 0.5},
-                            }
-                        )
-                    else:  # GRU
-                        hyperopt_params.update(
-                            {
-                                "combiner.num_fc_layers": {"space": "choice", "categories": [1, 2, 3]},
-                                "combiner.output_size": {"space": "choice", "categories": [128, 256, 512]},
-                                "combiner.dropout": {"space": "uniform", "lower": 0.0, "upper": 0.4},
-                            }
-                        )
-                elif base_model_name in {"CNN", "LSTM", "GRU"} and use_timeseries_pack:
-                    # 有时间列时：序列模型主要靠 timeseries encoder；combiner 仅做轻量搜索
-                    hyperopt_params.update(
-                        {
-                            "combiner.num_fc_layers": {"space": "choice", "categories": [0, 1, 2]},
-                            "combiner.output_size": {"space": "choice", "categories": [64, 128, 256]},
-                            "combiner.dropout": {"space": "uniform", "lower": 0.0, "upper": 0.3},
-                        }
-                    )
-                elif base_model_name == "TabNet":
-                    hyperopt_params.update(
-                        {
-                            "combiner.size": {"space": "choice", "categories": [16, 32, 64]},
-                            "combiner.output_size": {"space": "choice", "categories": [64, 128, 256]},
-                            "combiner.num_steps": {"space": "choice", "categories": [3, 4, 5]},
-                            "combiner.dropout": {"space": "uniform", "lower": 0.0, "upper": 0.3},
-                            "combiner.sparsity": {"space": "choice", "categories": [1e-5, 1e-4, 1e-3]},
-                            "combiner.bn_virtual_bs": {"space": "choice", "categories": [128, 256, 512, 1024]},
-                        }
-                    )
-                elif base_model_name == "Transformer":
-                    # tabtransformer/common transformer options
-                    hyperopt_params.update(
-                        {
-                            "combiner.hidden_size": {"space": "choice", "categories": [64, 128, 256]},
-                            "combiner.transformer_output_size": {"space": "choice", "categories": [64, 128, 256]},
-                            "combiner.num_layers": {"space": "choice", "categories": [1, 2, 3]},
-                            "combiner.num_heads": {"space": "choice", "categories": [2, 4, 8]},
-                            "combiner.dropout": {"space": "uniform", "lower": 0.0, "upper": 0.3},
-                            "combiner.fc_dropout": {"space": "uniform", "lower": 0.0, "upper": 0.5},
-                            "combiner.num_fc_layers": {"space": "choice", "categories": [0, 1, 2]},
-                            "combiner.output_size": {"space": "choice", "categories": [64, 128, 256]},
-                        }
-                    )
+        for base_model_name in LUDWIG_ALGORITHMS.keys():
+            if base_model_name in selected_models_list:
+                name = base_model_name
+                write_task("running", f"第 2/3 步: 极速寻找 {name} 最优网络结构 (Hyperopt)...")
+
+                model_input_features = input_features.copy()
+                is_tabular_seq_fallback = base_model_name in seq_models and not use_timeseries_pack
+
+                if use_timeseries_pack:
+                    if base_model_name == "CNN": ts_encoder = {"type": "parallel_cnn"}
+                    elif base_model_name == "LSTM": ts_encoder = {"type": "rnn", "cell_type": "lstm", "bidirectional": True}
+                    else: ts_encoder = {"type": "rnn", "cell_type": "gru", "bidirectional": True}
+                    model_input_features.append({"name": timeseries_col, "type": "timeseries", "preprocessing": {"tokenizer": "space", "timeseries_length_limit": max(1, len(numeric_cols)), "padding_value": 0.0, "padding": "right"}, "encoder": ts_encoder})
+
+                hyperopt_params = {"trainer.learning_rate": {"space": "choice", "categories":[0.001, 0.0005, 0.0001]}, "trainer.batch_size": {"space": "choice", "categories": ludwig_train_profile["batch_candidates"]}}
+                if base_model_name == "Deep-MLP": hyperopt_params.update({"combiner.num_fc_layers": {"space": "choice", "categories":[1, 2, 3]}, "combiner.output_size": {"space": "choice", "categories":[128, 256]}, "combiner.dropout": {"space": "uniform", "lower": 0.0, "upper": 0.3}})
+                elif base_model_name == "TabNet": hyperopt_params.update({"combiner.size": {"space": "choice", "categories":[16, 32]}, "combiner.output_size": {"space": "choice", "categories":[64, 128]}, "combiner.num_steps": {"space": "choice", "categories": [3, 4]}, "combiner.bn_virtual_bs": {"space": "choice", "categories":[4, 8, 16]}})
+                elif base_model_name == "Transformer": hyperopt_params.update({"combiner.hidden_size": {"space": "choice", "categories": [64, 128]}, "combiner.num_layers": {"space": "choice", "categories": [1, 2]}, "combiner.num_heads": {"space": "choice", "categories": [2, 4]}})
+                else: hyperopt_params.update({"combiner.num_fc_layers": {"space": "choice", "categories":[1, 2]}, "combiner.output_size": {"space": "choice", "categories":[128, 256]}})
 
                 config = {
-                    "input_features": input_features,
-                    "output_features": [
-                        {
-                            "name": label_column,
-                            "type": "category",
-                            # 使用带 class_weights 的 softmax loss，缓解类别不平衡导致的多数类塌缩
-                            "loss": (
-                                {"type": "softmax_cross_entropy", "class_weights": class_weights}
-                                if class_weights
-                                else {"type": "softmax_cross_entropy"}
-                            ),
-                        }
-                    ],
-                    # IMPORTANT: use the selected Ludwig model (combiner).
-                    # Previously LUDWIG_ALGORITHMS was only used to build display names,
-                    # causing every "different" Ludwig model to train with the same default combiner.
+                    "input_features": model_input_features,
+                    "output_features":[{"name": label_column, "type": "category", "loss": {"type": "softmax_cross_entropy"}}],
                     "combiner": LUDWIG_ALGORITHMS[base_model_name],
-                    "backend": {"type": "local"},
-                    "preprocessing": {
-                        "split": {
-                            # 分层切分，保证 train/val/test 都包含各类样本，避免评估被多数类主导
-                            "type": "stratify",
-                            "column": label_column,
-                            "probabilities": [train_ratio, (1.0 - train_ratio) / 2.0, (1.0 - train_ratio) / 2.0]
-                        }
-                    },
-                    "trainer": {
-                            "epochs": ludwig_train_profile["epochs"],
-                            "early_stop": ludwig_train_profile["early_stop"],
-                            "batch_size": ludwig_train_profile["default_batch_size"],  
-                        },
-                    "hyperopt": {
-                        # NOTE: 当前 Ludwig 版本的 hyperopt config schema 不支持 `avg_f1_score_macro` 作为 metric。
-                        # 为了在类别不平衡下避免“全预测多数类”的塌缩解，这里改为最小化验证集 loss，
-                        # 并配合 output feature 的 class_weights（上方已注入）来提升少数类关注度。
-                        "goal": "minimize", "metric": "loss", "output_feature": label_column,
-                        "search_alg": {"type": "hyperopt"},
-                    "executor": gpu_cfg["ludwig_executor"],
-                        "parameters": hyperopt_params
-                    }
+                    "backend": {"type": "local"}, 
+                    "preprocessing": {"split": {"type": "stratify", "column": label_column, "probabilities":[0.8, 0.1, 0.1]}},
+                    "trainer": {"epochs": 2, "early_stop": 2, "batch_size": ludwig_train_profile["default_batch_size"]}, 
+                    "hyperopt": {"goal": "minimize", "metric": "loss", "output_feature": label_column, "search_alg": {"type": "hyperopt"}, "executor": gpu_cfg["ludwig_executor"], "parameters": hyperopt_params}
                 }
-                
-                # --- 新增：启用 Ludwig 详细日志 ---
-                import logging as ludwig_logging
-                ludwig_logger = ludwig_logging.getLogger("ludwig")
-                ludwig_logger.setLevel(ludwig_logging.INFO) 
-                # --- END 新增：启用 Ludwig 详细日志 ---
 
-                # --- 关键修改：输出目录直接使用基础模型名 ---
-                out_dir = f"./storage/trained_models/latest/{name}" # 例如 ./storage/trained_models/latest/TabNet
-                if os.path.exists(out_dir):
-                    shutil.rmtree(out_dir, ignore_errors=True)
+                out_dir = f"./storage/trained_models/latest/{name}"
+                if os.path.exists(out_dir): shutil.rmtree(out_dir, ignore_errors=True)
+
                 try:
-                    hyperopt_results = hyperopt(config=config, dataset=temp_dataset_path, output_directory=out_dir)
+                    hyperopt_results = hyperopt(config=config, dataset=hyperopt_dataset_path, output_directory=out_dir)
                     
-                    # --- 更稳健的解析：优先读取 hyperopt_statistics.json ---
-                    # Ray 的 results_df 在 trial 全部失败/或版本差异时可能没有 metric_score 列，导致 KeyError。
-                    stats_path = os.path.join(out_dir, "hyperopt", "hyperopt_statistics.json")
-                    best_f1 = None
-                    best_acc = None
+                    best_trial_dir = None
+                    for trial_dir in glob.glob(os.path.join(out_dir, "hyperopt", "trial_*")):
+                        if glob.glob(os.path.join(trial_dir, "checkpoint_*")):
+                            latest_checkpoint = max(glob.glob(os.path.join(trial_dir, "checkpoint_*")), key=os.path.getmtime)
+                            if os.path.exists(os.path.join(latest_checkpoint, "model")):
+                                best_trial_dir = os.path.join(latest_checkpoint, "model")
+                                break
 
-                    if os.path.exists(stats_path):
-                        with open(stats_path, "r") as sf:
-                            stats_json = json.load(sf)
-                        results_list = stats_json.get("hyperopt_results", []) or []
-                        if not results_list:
-                            raise ValueError(f"{name} hyperopt returned no successful trials (hyperopt_results empty).")
+                    if not best_trial_dir: raise Exception("未找到最佳模型的存档")
 
-                        # Even if hyperopt optimizes `loss`, what we care about is F1.
-                        # Prefer selecting the trial with the best macro F1 from eval_stats (when available),
-                        # and fall back to metric_score respecting goal if macro F1 is missing.
-                        def _macro_f1(entry: dict) -> float:
-                            try:
-                                s = (entry.get("eval_stats", {}) or {}).get(label_column, {}) or {}
-                                overall = (s.get("overall_stats", {}) or {})
-                                v = overall.get("avg_f1_score_macro") or overall.get("f1_score_macro")
-                                return float(v) if v is not None else float("-inf")
-                            except Exception:
-                                return float("-inf")
+                    # =================================================================
+                    # ⭐️⭐️⭐️ 经验回放式流式学习 (Experience Replay)
+                    # =================================================================
+                    if torch.cuda.is_available(): torch.cuda.empty_cache()
+                    final_ludwig_model = LudwigModel.load(best_trial_dir, backend='local')
+                    
+                    total_trained_rows = 0
+                    for fp in file_paths:
+                        sep = '\t' if fp.lower().endswith('.tsv') else ','
+                        for chunk in pd.read_csv(fp, sep=sep, chunksize=50000):
+                            chunk.columns = chunk.columns.str.strip()
+                            chunk = chunk.dropna(subset=[label_column]).copy()
+                            if chunk.empty: continue
+                            
+                            if use_timeseries_pack:
+                                chunk[timeseries_col] = (chunk[numeric_cols].astype(float).replace([np.inf, -np.inf], np.nan).fillna(0.0).agg(lambda r: " ".join(f"{v:.8g}" for v in r.values), axis=1))
 
-                        best_by_f1 = max(results_list, key=_macro_f1)
-                        if _macro_f1(best_by_f1) != float("-inf"):
-                            best_entry = best_by_f1
-                        else:
-                            hyperopt_goal = (stats_json.get("hyperopt_config", {}) or {}).get("goal", "maximize")
-                            if str(hyperopt_goal).lower() == "minimize":
-                                best_entry = min(results_list, key=lambda r: float(r.get("metric_score", float("inf"))))
-                            else:
-                                best_entry = max(results_list, key=lambda r: float(r.get("metric_score", float("-inf"))))
-                        eval_stats = best_entry.get("eval_stats", {}) or {}
-                        feature_stats = eval_stats.get(label_column, {}) or {}
-                        overall_stats = feature_stats.get("overall_stats", {}) or {}
+                            # ⭐️ 神来之笔：把最新读取的新鲜数据，跟纯净的平衡记忆胶囊混合打乱！
+                            # 这样模型在学习新数据的同时，被迫复习过去的故障特征，记忆永不衰退！
+                            combined_chunk = pd.concat([chunk, replay_buffer_df], ignore_index=True).sample(frac=1.0)
 
-                        best_f1 = (
-                            overall_stats.get("avg_f1_score_macro")
-                            or overall_stats.get("avg_f1_score_weighted")
-                            or overall_stats.get("avg_f1_score_micro")
-                            or overall_stats.get("f1_score_macro")
-                            or overall_stats.get("f1_score_weighted")
-                            or overall_stats.get("f1_score_micro")
-                            or feature_stats.get("f1_score_macro")
-                            or feature_stats.get("f1_score_weighted")
-                            or feature_stats.get("f1_score_micro")
-                            or feature_stats.get("f1_score")
-                        )
+                            final_ludwig_model.train_online(dataset=combined_chunk)
+                            
+                            total_trained_rows += len(chunk)
+                            print(f"🌊 [经验回放流式训练] 引擎 {name} 已成功吸收 {total_trained_rows} 行海量新数据...")
+                            write_task("running", f"第 2/3 步: 正在增量吞噬 {name}，已深度学习 {total_trained_rows} 行数据", leaderboard)
+                            
+                            del chunk; del combined_chunk; gc.collect()
 
-                        # Ludwig 分类的整体准确率常用 token_accuracy / accuracy_micro
-                        best_acc = (
-                            overall_stats.get("token_accuracy")
-                            or feature_stats.get("accuracy_micro")
-                            or feature_stats.get("accuracy")
-                            or feature_stats.get("token_accuracy")
-                        )
-                    else:
-                        # fallback：旧逻辑（尽量少依赖列名）
-                        experiment_analysis = hyperopt_results.experiment_analysis
-                        trials_df = experiment_analysis.results_df
-                        if trials_df is None or trials_df.empty:
-                            raise ValueError(f"{name} hyperopt returned no results.")
+                    final_model_dst = os.path.join(out_dir, "model")
+                    if os.path.exists(final_model_dst): shutil.rmtree(final_model_dst, ignore_errors=True)
+                    final_ludwig_model.save(final_model_dst)
 
-                        score_col = "metric_score" if "metric_score" in trials_df.columns else None
-                        if score_col is None:
-                            raise ValueError(f"{name} missing metric_score in results_df. columns={list(trials_df.columns)}")
-
-                        # Respect goal if present on the returned object (fallback to maximize).
-                        try:
-                            hyperopt_goal = str(getattr(hyperopt_results, "hyperopt_config", {}).get("goal", "maximize")).lower()
-                        except Exception:
-                            hyperopt_goal = "maximize"
-                        best_trial_row = (
-                            trials_df.loc[trials_df[score_col].idxmin()]
-                            if hyperopt_goal == "minimize"
-                            else trials_df.loc[trials_df[score_col].idxmax()]
-                        )
-                        eval_stats_raw = best_trial_row.get("eval_stats", "{}")
-                        if isinstance(eval_stats_raw, str):
-                            eval_stats = json.loads(eval_stats_raw)
-                        else:
-                            eval_stats = eval_stats_raw
-                        feature_stats = eval_stats.get(label_column, {}) or {}
-                        overall_stats = feature_stats.get("overall_stats", {}) or {}
-                        best_f1 = overall_stats.get("avg_f1_score_macro") or overall_stats.get("avg_f1_score_weighted")
-                        best_acc = overall_stats.get("token_accuracy") or feature_stats.get("accuracy_micro") or feature_stats.get("accuracy")
-
-                    if best_f1 is None:
-                        raise ValueError(f"{name} 缺少可用的 F1 指标(best_f1 is None)")
-                    if best_acc is None:
-                        best_acc = 0.0
-
-                    logger.info(f"✅ {name}: Best trial F1={float(best_f1):.4f}, Acc={float(best_acc):.4f}")
-
-                    leaderboard.append(
-                        {
-                            "model_name": name, # 使用基础模型名
-                            "f1_score": round(float(best_f1), 4),
-                            "accuracy": round(float(best_acc), 4),
-                            "model_path": out_dir, # 例如 ./storage/trained_models/latest/TabNet
-                        }
-                    )
-                    write_task("running", f"Ludwig 模型完成: {name}", leaderboard)
-
-                    # ================== ⭐ 提取最佳模型（核心修改） ==================
-                    import glob
-
+                    # =================================================================
+                    # ⭐️⭐️⭐️ 期末闭卷考试：使用纯洁未见的 test_df 打分
+                    # =================================================================
+                    write_task("running", f"第 3/3 步: 正在对 {name} 终极形态进行闭卷测算...", leaderboard)
                     try:
-                        # 1. 找到 hyperopt 目录下的所有 trial
-                        hyperopt_dir = os.path.join(out_dir, "hyperopt")
-                        trial_dirs = glob.glob(os.path.join(hyperopt_dir, "trial_*"))
-                        if not trial_dirs:
-                            raise Exception("No trial directories found inside hyperopt folder after run.")
+                        pred_df, _ = final_ludwig_model.predict(dataset=test_df)
+                        pred_col =[c for c in pred_df.columns if c.endswith('_predictions')][0]
+                        
+                        y_true = test_df[label_column].astype(str)
+                        y_pred = pred_df[pred_col].astype(str)
+                        
+                        best_f1 = f1_score(y_true, y_pred, average='macro')
+                        best_acc = accuracy_score(y_true, y_pred)
+                    except Exception as eval_e:
+                        logger.error(f"打分环节异常: {eval_e}")
+                        best_f1, best_acc = 0.0001, 0.0001
 
-                        # 2. 策略：找到包含 'checkpoint_*' 子目录且该子目录下有 'model' 目录的 trial
-                        best_trial_dir = None
-                        final_model_source = None
-                        for trial_dir in trial_dirs:
-                             # 检查 trial 目录下是否有 checkpoint_* 文件夹
-                             checkpoint_dirs = glob.glob(os.path.join(trial_dir, "checkpoint_*"))
-                             if checkpoint_dirs:
-                                 # 选择最新的 checkpoint (通常是最终模型)
-                                 latest_checkpoint = max(checkpoint_dirs, key=os.path.getmtime)
-                                 candidate_model_dir = os.path.join(latest_checkpoint, "model")
-                                 if os.path.exists(candidate_model_dir):
-                                     best_trial_dir = trial_dir
-                                     final_model_source = candidate_model_dir
-                                     break # 找到第一个有效的就停止，通常是最佳的
-
-                        if not best_trial_dir or not final_model_source:
-                            raise Exception("No valid trial directory with a complete 'model' subdirectory found.")
-
-                        # 3. 目标模型路径 (固定在 out_dir 下)
-                        final_model_dst = os.path.join(out_dir, "model")
-
-                        # 4. 删除旧的目标模型目录 (如果存在)
-                        if os.path.exists(final_model_dst):
-                            shutil.rmtree(final_model_dst, ignore_errors=True)
-                            logger.info(f"🧹 Cleaned up old final model at {final_model_dst}")
-
-                        # 5. 复制最佳模型到固定位置
-                        shutil.copytree(final_model_source, final_model_dst)
-
-                        logger.info(f"✅ Extracted final model from '{best_trial_dir}' to: {final_model_dst}")
-
-                    except Exception as extract_e:
-                        logger.error(f"❌ Failed to extract final model for {name}: {str(extract_e)}")
-                        # 如果提取失败，后续的部署肯定会失败。这里可以抛出异常中断，或记录错误。
-                        # 为了流程继续，可以选择不中断，但部署时会失败。
-                        # raise # 可选：中断当前模型训练
-                    # ================== ⭐ 清理 hyperopt（节省空间，可选） ==================
-                    try:
-                        hyperopt_dir_to_remove = os.path.join(out_dir, "hyperopt")
-                        if os.path.exists(hyperopt_dir_to_remove):
-                            shutil.rmtree(hyperopt_dir_to_remove, ignore_errors=True)
-                            logger.info(f"🧹 Cleaned up hyperopt temp files for {name}")
-                    except Exception as cleanup_e:
-                        logger.warning(f"Failed to cleanup hyperopt for {name}: {str(cleanup_e)}")
-
+                    leaderboard.append({"model_name": name, "f1_score": round(float(best_f1), 4), "accuracy": round(float(best_acc), 4), "model_path": out_dir})
+                    write_task("running", f"Ludwig 增量模型大功告成: {name}", leaderboard)
+                    shutil.rmtree(os.path.join(out_dir, "hyperopt"), ignore_errors=True)
 
                 except Exception as e:
-                    logger.error(f"❌ {name} 异常: {str(e)}")
-                    # 失败模型不再写入 0 分，明确标注失败原因
-                    leaderboard.append({
-                        "model_name": name, "f1_score": None, # 使用基础模型名
-                        "accuracy": None, "model_path": None, "status": "failed",
-                        "error": str(e)
-                    })
-                    write_task("running", f"Ludwig 模型失败: {name}，原因: {str(e)}", leaderboard)
+                    logger.error(f"❌ {name} 异常: {str(e)}\n{traceback.format_exc()}")
+                    leaderboard.append({"model_name": name, "f1_score": None, "accuracy": None, "model_path": None, "status": "failed", "error": str(e)})
                 finally:
-                    if os.path.exists(temp_dataset_path): os.remove(temp_dataset_path)
-        # 训练结束后，对排行榜进行排序
-        leaderboard[:] = sorted(
-            leaderboard,
-            key=lambda x: (x.get('f1_score') is not None, x.get('f1_score') or -1),
-            reverse=True
-        ) # 使用 slice [:] 来就地修改
-        write_task("completed", "训练完成", leaderboard)
+                    if 'final_ludwig_model' in locals(): del final_ludwig_model
+                    gc.collect()
 
     except Exception as e:
         logger.error(traceback.format_exc())
-        write_task("failed", str(e), [])
+        write_task("failed", str(e),[])
+    finally:
+        # 打扫战场
+        if 'hyperopt_dataset_path' in locals() and os.path.exists(hyperopt_dataset_path): os.remove(hyperopt_dataset_path)
+        del base_sample_df; del replay_buffer_df; del test_df; gc.collect()
+        
+        leaderboard[:] = sorted(leaderboard, key=lambda x: (x.get('f1_score') is not None, x.get('f1_score') or -1), reverse=True)
+        try:
+            if "failed" not in json.load(open(task_file, "r"))["status"]: write_task("completed", "增量大模型训练全流程完成！", leaderboard)
+        except Exception: pass
 # ==========================================
 # 新增：获取所有已训练模型列表
 # ==========================================
@@ -1137,38 +842,66 @@ async def list_dataset_files(folder_name: str):
 # 在 app.post("/api/train/start") 中添加参数
 @app.post("/api/train/start")
 async def start_training(
-    background_tasks: BackgroundTasks, 
+    background_tasks: BackgroundTasks,
     folder_name: str = Form(...),
-    file_names: str = Form(...),
+    # 修改：file_names 变成可选，默认为空字符串
+    file_names: str = Form(default=""),
     train_ratio: float = Form(...),
     label_column: str = Form(...),
     selected_models: str = Form(...)  # 接收前端传递的 JSON 字符串
 ):
+    # 构建完整路径
     folder_path = os.path.join(DATASET_ROOT_PATH, folder_name)
+    
     if not os.path.exists(folder_path):
+        logger.error(f"文件夹不存在: {folder_path}")
         raise HTTPException(status_code=404, detail=f"文件夹不存在: {folder_path}")
-    
-    requested_files = [f.strip() for f in file_names.split(",") if f.strip()]
-    if not requested_files:
+
+    # --- 修改逻辑 ---
+    requested_files = []
+    if file_names.strip(): # 如果 file_names 不为空
+        requested_files = [f.strip() for f in file_names.split(",") if f.strip()]
+        logger.info(f"Using specified files: {requested_files}")
+    else: # 如果 file_names 为空，获取文件夹下所有 CSV/TSV 文件
+        logger.info(f"No specific files provided, fetching all CSV/TSV files from folder: {folder_path}")
         all_items = os.listdir(folder_path)
-        requested_files =[f for f in all_items if os.path.isfile(os.path.join(folder_path, f)) and os.path.splitext(f)[1].lower() in {".csv", ".tsv"}]
+        requested_files = [
+            f for f in all_items
+            if os.path.isfile(os.path.join(folder_path, f)) and
+            os.path.splitext(f)[1].lower() in {".csv", ".tsv"}
+        ]
+        logger.info(f"Fetched files: {requested_files}")
+
+    # 构建完整的文件路径列表
+    file_paths = [os.path.join(folder_path, fname) for fname in requested_files if os.path.exists(os.path.join(folder_path, fname))]
     
-    file_paths =[os.path.join(folder_path, fname) for fname in requested_files if os.path.exists(os.path.join(folder_path, fname))]
+    # 记录未找到的文件
+    missing_files = set(requested_files) - {os.path.basename(fp) for fp in file_paths}
+    if missing_files:
+        logger.warning(f"Some requested files were not found: {missing_files}")
+    
     if not file_paths:
+        logger.error("没有有效的文件路径用于训练。")
         raise HTTPException(status_code=400, detail="没有有效的文件路径用于训练。")
+
+    logger.info(f"Final file paths for training: {file_paths}")
 
     # 解析选中的模型
     try:
         selected_models_list = json.loads(selected_models)
         if not isinstance(selected_models_list, list):
+            logger.error("selected_models 格式错误: 不是列表")
             raise ValueError("selected_models 必须是一个列表")
     except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"selected_models 格式错误: {e}")
         raise HTTPException(status_code=400, detail=f"selected_models 格式错误: {e}")
 
     task_id = str(uuid.uuid4())
+    logger.info(f"Starting training task {task_id} with {len(file_paths)} files.")
     # 将 selected_models_list 传递给后台任务
     background_tasks.add_task(run_hybrid_pipeline, task_id, file_paths, train_ratio, label_column, selected_models_list)
     return {"code": 200, "task_id": task_id}
+
 @app.post("/api/market/custom_upload")
 async def upload_custom_model(file: UploadFile = File(...), model_name: str = Form(...)):
     """
@@ -1531,4 +1264,4 @@ async def predict_batch_from_uploaded_file(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning", reload_excludes=["storage/*"])
+    uvicorn.run(app, host="127.0.0.1", port=8001, log_level="warning", reload_excludes=["storage/*"])
